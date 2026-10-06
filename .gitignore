@@ -1,0 +1,46 @@
+﻿# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+
+# Java
+*.class
+*.log
+
+# IDE - IntelliJ
+.idea/
+*.iml
+
+# IDE - Eclipse
+.classpath
+.project
+.settings/
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Test reports
+surefire-reports/
+failsafe-reports/
+
+# Selenium screenshots generated during local test execution
+test-output/
+
+# Docker
+*.tar
+
+# Temporary files
+*.tmp
+*.temp
