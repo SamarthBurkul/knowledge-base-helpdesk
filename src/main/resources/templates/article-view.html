@@ -1,0 +1,63 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>View Article</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<nav>
+    <div class="brand">Knowledge Base Helpdesk</div>
+    <div>
+        <a href="/articles">Articles</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/logout">Logout</a>
+    </div>
+</nav>
+
+<div class="container">
+
+    <div class="article-detail">
+
+        <span class="status" th:text="${article.status}"></span>
+
+        <h1 th:text="${article.title}"></h1>
+
+        <h3>Problem Description</h3>
+        <p th:text="${article.description}"></p>
+
+        <h3>Solution</h3>
+        <div class="solution" th:text="${article.solution}"></div>
+
+        <hr>
+
+        <p>
+            <strong>Author:</strong>
+            <span th:text="${article.author}"></span>
+        </p>
+
+        <p>
+            <strong>Last Updated:</strong>
+            <span th:text="${article.updatedAt}"></span>
+        </p>
+
+        <div class="actions">
+
+            <a class="button"
+               href="/articles">
+                Back
+            </a>
+
+            <a class="button"
+               th:if="${role == 'ADMIN' or role == 'SUPPORT'}"
+               th:href="@{/articles/edit/{id}(id=${article.id})}">
+                Edit
+            </a>
+        </div>
+
+    </div>
+
+</div>
+
+</body>
+</html>
