@@ -1,0 +1,94 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Knowledge Articles</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<nav>
+    <div class="brand">Knowledge Base Helpdesk</div>
+    <div>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/logout">Logout</a>
+    </div>
+</nav>
+
+<div class="container">
+
+    <div class="page-header">
+        <div>
+            <h1>Knowledge Articles</h1>
+            <p>Search for solutions to common problems.</p>
+        </div>
+
+        <a class="button"
+           th:if="${role == 'ADMIN' or role == 'SUPPORT'}"
+           href="/articles/new">
+            + Create Article
+        </a>
+    </div>
+
+    <form class="search" method="get" action="/articles">
+        <input type="text"
+               name="keyword"
+               th:value="${keyword}"
+               placeholder="Search by title, problem or solution">
+
+        <button type="submit">Search</button>
+    </form>
+
+    <div class="article-list">
+
+        <div class="article"
+             th:each="article : ${articles}">
+
+            <div>
+                <h2>
+                    <a th:href="@{/articles/{id}(id=${article.id})}"
+                       th:text="${article.title}">
+                    </a>
+                </h2>
+
+                <p th:text="${article.description}"></p>
+
+                <span class="status"
+                      th:text="${article.status}">
+                </span>
+            </div>
+
+            <div class="article-actions">
+
+                <a class="button-small"
+                   th:href="@{/articles/{id}(id=${article.id})}">
+                    View
+                </a>
+
+                <a class="button-small"
+                   th:if="${role == 'ADMIN' or role == 'SUPPORT'}"
+                   th:href="@{/articles/edit/{id}(id=${article.id})}">
+                    Edit
+                </a>
+
+                <form th:if="${role == 'ADMIN'}"
+                      th:action="@{/articles/delete/{id}(id=${article.id})}"
+                      method="post">
+                    <button class="danger-small" type="submit">
+                        Delete
+                    </button>
+                </form>
+
+            </div>
+        </div>
+
+        <div class="empty"
+             th:if="${#lists.isEmpty(articles)}">
+            No matching articles found.
+        </div>
+
+    </div>
+
+</div>
+
+</body>
+</html>

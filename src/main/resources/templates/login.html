@@ -1,0 +1,34 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Knowledge Base Helpdesk - Login</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="login-page">
+
+<div class="login-card">
+    <h1>Knowledge Base Helpdesk</h1>
+    <p class="subtitle">Centralized Support Knowledge Portal</p>
+
+    <div class="error" th:if="${error}" th:text="${error}"></div>
+
+    <form method="post" action="/login">
+        <label>Username</label>
+        <input type="text" name="username" placeholder="Enter username" required>
+
+        <label>Password</label>
+        <input type="password" name="password" placeholder="Enter password" required>
+
+        <button type="submit">Login</button>
+    </form>
+
+    <div class="demo">
+        <strong>Demo Accounts</strong>
+        <p>Admin: admin / admin123</p>
+        <p>Support: support / support123</p>
+        <p>User: user / user123</p>
+    </div>
+</div>
+
+</body>
+</html>

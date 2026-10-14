@@ -1,0 +1,61 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<nav>
+    <div class="brand">Knowledge Base Helpdesk</div>
+    <div>
+        <span th:text="${username}"></span>
+        <span class="role" th:text="${role}"></span>
+        <a href="/logout">Logout</a>
+    </div>
+</nav>
+
+<div class="container">
+    <h1>Dashboard</h1>
+    <p>Welcome, <strong th:text="${username}"></strong>.</p>
+
+    <div class="cards">
+        <div class="card">
+            <h3>Total Articles</h3>
+            <p th:text="${articleCount}"></p>
+        </div>
+
+        <div class="card">
+            <h3>Published</h3>
+            <p th:text="${publishedCount}"></p>
+        </div>
+
+        <div class="card">
+            <h3>Draft</h3>
+            <p th:text="${draftCount}"></p>
+        </div>
+
+        <div class="card">
+            <h3>Resolved</h3>
+            <p th:text="${resolvedCount}"></p>
+        </div>
+
+        <div class="card">
+            <h3>Users</h3>
+            <p th:text="${userCount}"></p>
+        </div>
+    </div>
+
+    <div class="actions">
+        <a class="button" href="/articles">Knowledge Articles</a>
+
+        <a class="button"
+           th:if="${role == 'ADMIN' or role == 'SUPPORT'}"
+           href="/articles/new">
+            Create Article
+        </a>
+    </div>
+</div>
+
+</body>
+</html>
