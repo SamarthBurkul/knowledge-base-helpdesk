@@ -1,0 +1,111 @@
+---
+- name: Demonstrate failed-candidate recovery without touching the app on port 8082
+  hosts: helpdesk
+  gather_facts: false
+
+  vars:
+    stable_image: knowledge-base-helpdesk:1.0.1
+    candidate_image: nginx:alpine
+    app_container: helpdesk-ansible
+    app_port: "18084"
+    app_health_url: "http://127.0.0.1:{{ app_port }}/actuator/health"
+
+  tasks:
+    - name: Verify Docker and both local images are available
+      ansible.builtin.command:
+        argv:
+          - docker
+          - image
+          - inspect
+          - "{{ item }}"
+      loop:
+        - "{{ stable_image }}"
+        - "{{ candidate_image }}"
+      changed_when: false
+
+    - name: Replace only the isolated Ansible test container
+      ansible.builtin.command:
+        argv:
+          - docker
+          - container
+          - rm
+          - --force
+          - "{{ app_container }}"
+      register: remove_existing_container
+      changed_when: remove_existing_container.rc == 0
+      failed_when: false
+
+    - name: Try the intentionally unsuitable candidate and recover
+      block:
+        - name: Start the candidate image on the isolated deployment port
+          ansible.builtin.command:
+            argv:
+              - docker
+              - run
+              - --detach
+              - --name
+              - "{{ app_container }}"
+              - --publish
+              - "{{ app_port }}:8080"
+              - "{{ candidate_image }}"
+
+        - name: Validate the candidate's application health endpoint
+          ansible.builtin.uri:
+            url: "{{ app_health_url }}"
+            method: GET
+            return_content: true
+            status_code: 200
+          register: candidate_health
+          retries: 5
+          delay: 2
+          until: candidate_health.status == 200 and candidate_health.json.status == "UP"
+
+      rescue:
+        - name: Remove the candidate that failed application validation
+          ansible.builtin.command:
+            argv:
+              - docker
+              - container
+              - rm
+              - --force
+              - "{{ app_container }}"
+          register: remove_failed_candidate
+          changed_when: remove_failed_candidate.rc == 0
+          failed_when: false
+
+        - name: Restore the previously known-good application image
+          ansible.builtin.command:
+            argv:
+              - docker
+              - run
+              - --detach
+              - --restart
+              - unless-stopped
+              - --name
+              - "{{ app_container }}"
+              - --publish
+              - "{{ app_port }}:8080"
+              - "{{ stable_image }}"
+
+        - name: Wait for the restored application health endpoint
+          ansible.builtin.uri:
+            url: "{{ app_health_url }}"
+            method: GET
+            return_content: true
+            status_code: 200
+          register: restored_health
+          retries: 30
+          delay: 2
+          until: restored_health.status == 200 and restored_health.json.status == "UP"
+
+        - name: Confirm recovery succeeded
+          ansible.builtin.assert:
+            that:
+              - restored_health.json.status == "UP"
+            fail_msg: "Rollback image did not recover to a healthy state."
+
+        - name: Report expected candidate failure and successful rollback
+          ansible.builtin.debug:
+            msg: >-
+              The intentionally unsuitable candidate failed health validation;
+              {{ stable_image }} was restored and reports UP.

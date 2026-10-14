@@ -1,0 +1,114 @@
+---
+- name: Deploy Helpdesk to the local Ubuntu Docker target
+  hosts: helpdesk
+  gather_facts: false
+
+  vars:
+    app_image: knowledge-base-helpdesk:1.0.1
+    app_container: helpdesk-ansible
+    app_port: "18084"
+    app_health_url: "http://127.0.0.1:{{ app_port }}/actuator/health"
+
+  tasks:
+    - name: Validate deployment inputs
+      ansible.builtin.assert:
+        that:
+          - app_image is match('^[A-Za-z0-9._:/-]+$')
+          - app_container is match('^[A-Za-z0-9_.-]+$')
+          - app_port | int >= 1
+          - app_port | int <= 65535
+        fail_msg: "Set a valid local image tag, container name, and host port."
+
+    - name: Verify Docker CLI and daemon are available
+      ansible.builtin.command:
+        argv:
+          - docker
+          - version
+      changed_when: false
+
+    - name: Verify the requested application image is available locally
+      ansible.builtin.command:
+        argv:
+          - docker
+          - image
+          - inspect
+          - "{{ app_image }}"
+      changed_when: false
+
+    - name: Inspect the existing application container
+      ansible.builtin.command:
+        argv:
+          - docker
+          - container
+          - inspect
+          - "{{ app_container }}"
+      register: app_container_inspect
+      changed_when: false
+      failed_when: false
+
+    - name: Mark a missing container for creation
+      ansible.builtin.set_fact:
+        app_container_matches: false
+      when: app_container_inspect.rc != 0
+
+    - name: Check the existing container image, state, and port binding
+      ansible.builtin.set_fact:
+        app_container_details: "{{ app_container_inspect.stdout | from_json | first }}"
+        app_container_matches: >-
+          {{
+            (app_container_inspect.stdout | from_json | first).Config.Image == app_image
+            and (app_container_inspect.stdout | from_json | first).State.Running
+            and (
+              (
+                (app_container_inspect.stdout | from_json | first).HostConfig.PortBindings
+                | default({})
+              ).get('8080/tcp', [])
+              | first
+              | default({})
+            ).get('HostPort', '') == (app_port | string)
+          }}
+      when: app_container_inspect.rc == 0
+
+    - name: Remove the existing container when its desired state differs
+      ansible.builtin.command:
+        argv:
+          - docker
+          - container
+          - rm
+          - --force
+          - "{{ app_container }}"
+      when:
+        - app_container_inspect.rc == 0
+        - not app_container_matches
+
+    - name: Start the requested application image
+      ansible.builtin.command:
+        argv:
+          - docker
+          - run
+          - --detach
+          - --restart
+          - unless-stopped
+          - --name
+          - "{{ app_container }}"
+          - --publish
+          - "{{ app_port }}:8080"
+          - "{{ app_image }}"
+      when: not app_container_matches
+
+    - name: Wait for the application health endpoint
+      ansible.builtin.uri:
+        url: "{{ app_health_url }}"
+        method: GET
+        return_content: true
+        status_code: 200
+      register: app_health
+      retries: 30
+      delay: 2
+      until: app_health.status == 200
+
+    - name: Require an UP health status
+      ansible.builtin.assert:
+        that:
+          - app_health.json.status == "UP"
+        fail_msg: "Application health endpoint did not report UP."
