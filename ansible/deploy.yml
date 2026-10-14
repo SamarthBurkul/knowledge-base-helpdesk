@@ -4,6 +4,7 @@
   gather_facts: false
 
   vars:
+    docker_cli: docker
     app_image: knowledge-base-helpdesk:1.0.1
     app_container: helpdesk-ansible
     app_port: "18084"
@@ -22,14 +23,14 @@
     - name: Verify Docker CLI and daemon are available
       ansible.builtin.command:
         argv:
-          - docker
+          - "{{ docker_cli }}"
           - version
       changed_when: false
 
     - name: Verify the requested application image is available locally
       ansible.builtin.command:
         argv:
-          - docker
+          - "{{ docker_cli }}"
           - image
           - inspect
           - "{{ app_image }}"
@@ -38,7 +39,7 @@
     - name: Inspect the existing application container
       ansible.builtin.command:
         argv:
-          - docker
+          - "{{ docker_cli }}"
           - container
           - inspect
           - "{{ app_container }}"
@@ -72,7 +73,7 @@
     - name: Remove the existing container when its desired state differs
       ansible.builtin.command:
         argv:
-          - docker
+          - "{{ docker_cli }}"
           - container
           - rm
           - --force
@@ -84,7 +85,7 @@
     - name: Start the requested application image
       ansible.builtin.command:
         argv:
-          - docker
+          - "{{ docker_cli }}"
           - run
           - --detach
           - --restart

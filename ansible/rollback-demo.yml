@@ -4,6 +4,7 @@
   gather_facts: false
 
   vars:
+    docker_cli: docker
     stable_image: knowledge-base-helpdesk:1.0.1
     candidate_image: nginx:alpine
     app_container: helpdesk-ansible
@@ -14,7 +15,7 @@
     - name: Verify Docker and both local images are available
       ansible.builtin.command:
         argv:
-          - docker
+          - "{{ docker_cli }}"
           - image
           - inspect
           - "{{ item }}"
@@ -26,7 +27,7 @@
     - name: Replace only the isolated Ansible test container
       ansible.builtin.command:
         argv:
-          - docker
+          - "{{ docker_cli }}"
           - container
           - rm
           - --force
@@ -40,7 +41,7 @@
         - name: Start the candidate image on the isolated deployment port
           ansible.builtin.command:
             argv:
-              - docker
+              - "{{ docker_cli }}"
               - run
               - --detach
               - --name
@@ -64,7 +65,7 @@
         - name: Remove the candidate that failed application validation
           ansible.builtin.command:
             argv:
-              - docker
+              - "{{ docker_cli }}"
               - container
               - rm
               - --force
@@ -76,7 +77,7 @@
         - name: Restore the previously known-good application image
           ansible.builtin.command:
             argv:
-              - docker
+              - "{{ docker_cli }}"
               - run
               - --detach
               - --restart

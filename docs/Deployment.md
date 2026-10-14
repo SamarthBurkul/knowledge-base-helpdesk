@@ -9,10 +9,11 @@ provisioning. The deployment container uses host port 18084 and the name
 `helpdesk-ansible`, so the existing application on port 8082 is not replaced.
 
 Enable Ubuntu under Docker Desktop **Settings > Resources > WSL Integration**
-before running the playbooks. Ansible and Docker CLI are present in the Ubuntu
-WSL distribution; the playbooks fail at their Docker preflight if that
-distribution cannot reach the Docker Desktop engine. Keep the existing Docker
-images and WSL data intact.
+before running the playbooks. If WSL's Linux Docker CLI cannot reach the
+Docker Desktop engine but its Windows CLI is available, use the checked-in
+`ansible/docker-desktop.sh` bridge. It invokes Docker Desktop's CLI at its
+standard WSL-mounted path and forwards arguments without splitting the path.
+Keep the existing Docker images and WSL data intact.
 
 ## Deploy and check idempotency
 
@@ -20,8 +21,11 @@ From Ubuntu WSL:
 
 ```bash
 cd /mnt/g/knowledge-base-helpdesk
-ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook ansible/deploy.yml
-ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook ansible/deploy.yml
+export ANSIBLE_CONFIG=ansible/ansible.cfg
+ansible-playbook ansible/deploy.yml \
+  -e docker_cli=/mnt/g/knowledge-base-helpdesk/ansible/docker-desktop.sh
+ansible-playbook ansible/deploy.yml \
+  -e docker_cli=/mnt/g/knowledge-base-helpdesk/ansible/docker-desktop.sh
 ```
 
 The playbook requires the local `knowledge-base-helpdesk:1.0.1` image, verifies
@@ -33,7 +37,8 @@ named local Ansible test container.
 To use another locally available application tag or port:
 
 ```bash
-ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook ansible/deploy.yml \
+ansible-playbook ansible/deploy.yml \
+  -e docker_cli=/mnt/g/knowledge-base-helpdesk/ansible/docker-desktop.sh \
   -e app_image=knowledge-base-helpdesk:1.0.1 \
   -e app_port=18084
 ```
@@ -47,7 +52,8 @@ fail. The rescue tasks remove that candidate, restore
 `knowledge-base-helpdesk:1.0.1`, and verify the restored health endpoint:
 
 ```bash
-ANSIBLE_CONFIG=ansible/ansible.cfg ansible-playbook ansible/rollback-demo.yml
+ansible-playbook ansible/rollback-demo.yml \
+  -e docker_cli=/mnt/g/knowledge-base-helpdesk/ansible/docker-desktop.sh
 ```
 
 The existing app on port 8082 is not modified. Do not treat this local

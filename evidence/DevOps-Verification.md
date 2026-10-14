@@ -27,20 +27,48 @@ JUnit XML/text reports and the four Selenium screenshots are retained in
   that specifically named temporary container after the check; the image was
   retained locally.
 
-## Not run
+## Ansible local deployment and rollback
 
+- Both `ansible/deploy.yml` and `ansible/rollback-demo.yml` passed
+  `ansible-playbook --syntax-check` in Ubuntu WSL.
+- The Docker Desktop Windows CLI was reachable from WSL using
+  `ansible/docker-desktop.sh`; the playbooks accept that executable through
+  `docker_cli`.
+- The first `ansible/deploy.yml` run created `helpdesk-ansible` on host port
+  18084 and its health endpoint eventually returned `UP`: recap `changed=1`,
+  `failed=0`. The first health request retries were expected during startup.
+- A second `ansible/deploy.yml` run found the desired container already
+  running with the correct image and port: recap `changed=0`, `failed=0`.
+- The successful `ansible/rollback-demo.yml` run started `nginx:alpine` on
+  port 18084, observed the candidate health probe fail with connection reset,
+  removed only `helpdesk-ansible`, restored
+  `knowledge-base-helpdesk:1.0.1`, and confirmed health `UP`: recap
+  `changed=4`, `rescued=1`, `failed=0`. A preceding attempt encountered a
+  transient WSL/Docker CLI timeout while starting the candidate; its rescue
+  also restored the known-good image. No Docker/WSL reset or data removal was
+  attempted.
+- The deployed local container remains `helpdesk-ansible` on port 18084,
+  using `knowledge-base-helpdesk:1.0.1`; the existing app on port 8082 was
+  not replaced.
+
+## Blocked / not run
+
+- GitHub PR: no PR was found for the feature branch and the compare page
+  requires GitHub sign-in. Manual action: sign in at the compare URL recorded
+  in the task report, select base `develop` and compare
+  `feature/core-helpdesk`, retain the repository PR template, then create the
+  PR.
 - Jenkins pipeline: the local Jenkins URL presents a sign-in page. No Jenkins
-  credentials were supplied, so the job configuration and build console could
+  credentials were supplied, so job configuration and build console could
   not be inspected or executed.
-- Ansible playbooks: Ubuntu WSL has Ansible and Docker CLI installed, but a
-  subsequent WSL invocation timed out while creating the WSL instance. No
-  Docker/WSL reset or data removal was attempted. Playbook YAML was parsed
-  separately with PyYAML; this does not substitute for `ansible-playbook
-  --syntax-check` or execution.
 - Docker Hub push: the local Docker CLI configuration has a credential-store
   helper but no Docker Hub registry entry was discoverable from its metadata.
   No image push was attempted because the Docker Hub namespace and Jenkins
   credential were not verified.
+- Remote Ansible deployment: no remote Ubuntu target, SSH account, or key was
+  available. The verified playbooks target only local Ubuntu WSL.
+- A second feature branch, conflict-resolution evidence, and release tag were
+  not created because the baseline PR has not been reviewed or merged.
 
-No Jenkins, Ansible deployment, Docker Hub publication, remote health check,
-idempotency run, or rollback run is claimed as completed.
+No Jenkins run, Docker Hub publication, remote deployment, or production
+health/rollback check is claimed as completed.
