@@ -1,32 +1,54 @@
-﻿<!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
-    <title>Knowledge Base Helpdesk - Login</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Base Helpdesk — Sign In</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body class="login-page">
 
 <div class="login-card">
-    <h1>Knowledge Base Helpdesk</h1>
-    <p class="subtitle">Centralized Support Knowledge Portal</p>
+
+    <div class="login-header">
+        <div class="login-logo" aria-hidden="true">📚</div>
+        <h1>Knowledge Base Helpdesk</h1>
+        <p class="subtitle">Sign in to access the support knowledge portal</p>
+    </div>
 
     <div class="error" th:if="${error}" th:text="${error}"></div>
 
-    <form method="post" action="/login">
-        <label>Username</label>
-        <input type="text" name="username" placeholder="Enter username" required>
+    <form method="post" action="/login" autocomplete="on">
+        <label for="username">Username</label>
+        <input type="text"
+               id="username"
+               name="username"
+               placeholder="Enter your username"
+               required
+               autofocus
+               autocomplete="username">
 
-        <label>Password</label>
-        <input type="password" name="password" placeholder="Enter password" required>
+        <label for="password">Password</label>
+        <input type="password"
+               id="password"
+               name="password"
+               placeholder="Enter your password"
+               required
+               autocomplete="current-password">
 
-        <button type="submit">Login</button>
+        <div class="actions" style="margin-top: 24px;">
+            <button type="submit" style="width: 100%;">Sign In</button>
+        </div>
     </form>
 
     <div class="demo">
         <strong>Demo Accounts</strong>
-        <p>Admin: admin / admin123</p>
-        <p>Support: support / support123</p>
-        <p>User: user / user123</p>
+        <p>admin / admin123 — Administrator</p>
+        <p>support / support123 — Support Staff</p>
+        <p>user / user123 — Regular User</p>
     </div>
 </div>
 

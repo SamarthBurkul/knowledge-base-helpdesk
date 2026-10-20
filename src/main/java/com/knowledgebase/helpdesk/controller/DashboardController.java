@@ -37,6 +37,7 @@ public class DashboardController {
         model.addAttribute("resolvedCount",
                 articleService.countByStatus(Article.Status.RESOLVED));
         model.addAttribute("userCount", authService.countUsers());
+        model.addAttribute("users", authService.findAllUsers());
 
         return "dashboard";
     }

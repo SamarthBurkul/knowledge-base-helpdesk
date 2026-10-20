@@ -47,4 +47,10 @@ public class AuthService {
     public long countUsers() {
         return users.size();
     }
+
+    public java.util.List<AppUser> findAllUsers() {
+        return users.values().stream()
+                .sorted(java.util.Comparator.comparing(AppUser::getUsername))
+                .toList();
+    }
 }
