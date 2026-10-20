@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${article.title} + ' — Knowledge Base Helpdesk'">View Article</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<nav>
+    <div class="brand">
+        <span class="brand-icon" aria-hidden="true">📚</span>
+        Knowledge Base Helpdesk
+    </div>
+    <div class="nav-links">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/articles">Articles</a>
+        <div class="nav-divider" aria-hidden="true"></div>
+        <a href="/logout">Sign Out</a>
+    </div>
+</nav>
+
+<main class="container">
+
+    <div class="breadcrumb" aria-label="Breadcrumb">
+        <a href="/dashboard">Dashboard</a>
+        <span class="breadcrumb-sep" aria-hidden="true">›</span>
+        <a href="/articles">Articles</a>
+        <span class="breadcrumb-sep" aria-hidden="true">›</span>
+        <span th:text="${article.title}">Article Title</span>
+    </div>
+
+    <article class="article-detail">
+
+        <span class="status"
+              th:classappend="'status-' + ${article.status}"
+              th:text="${article.status}">
+        </span>
+
+        <h1 th:text="${article.title}">Article Title</h1>
+
+        <h3>Problem Description</h3>
+        <p th:text="${article.description}"></p>
+
+        <h3>Solution</h3>
+        <div class="solution" th:text="${article.solution}"></div>
+
+        <hr>
+
+        <div class="article-meta-detail">
+            <p>
+                <strong>Author:</strong>
+                <span th:text="${article.author}"></span>
+            </p>
+
+            <p>
+                <strong>Last Updated:</strong>
+                <span th:text="${#temporals.format(article.updatedAt, 'dd MMM yyyy, HH:mm')}"></span>
+            </p>
+        </div>
+
+        <div class="actions">
+
+            <a class="button button-secondary"
+               href="/articles">
+                ← Back to Articles
+            </a>
+
+            <a class="button"
+               th:if="${role == 'ADMIN' or role == 'SUPPORT'}"
+               th:href="@{/articles/edit/{id}(id=${article.id})}">
+                ✏️ Edit Article
+            </a>
+        </div>
+
+    </article>
+
+</main>
+
+</body>
+</html>
