@@ -44,3 +44,6 @@ test-output/
 # Temporary files
 *.tmp
 *.temp
+
+# Copy of the JAR used by the CI/Selenium test run
+ci-app/

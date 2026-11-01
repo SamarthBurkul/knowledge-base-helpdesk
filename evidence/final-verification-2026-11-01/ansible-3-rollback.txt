@@ -1,0 +1,71 @@
+### 2026-11-01 07:53:42 +0000  (failed candidate then automatic rollback)
+$ ansible-playbook -i ansible/inventory.ini ansible/rollback-demo.yml -e docker_cli=/mnt/g/knowledge-base-helpdesk/ansible/docker-desktop.sh
+
+PLAY [Demonstrate failed-candidate recovery without touching the app on port 8082] ***
+
+TASK [Verify Docker and both local images are available] ***********************
+ok: [localhost] => (item=knowledge-base-helpdesk:1.0.2)
+ok: [localhost] => (item=nginx:alpine)
+
+TASK [Record the currently deployed (known-good) image] ************************
+ok: [localhost]
+
+TASK [Choose the image to roll back to] ****************************************
+ok: [localhost]
+
+TASK [Show the rollback target] ************************************************
+ok: [localhost] => {
+    "msg": "Known-good image to restore if the candidate fails: knowledge-base-helpdesk:1.0.2"
+}
+
+TASK [Replace only the isolated Ansible test container] ************************
+changed: [localhost]
+
+TASK [Start the candidate image on the isolated deployment port] ***************
+changed: [localhost]
+
+TASK [Validate the candidate's application health endpoint] ********************
+FAILED - RETRYING: [localhost]: Validate the candidate's application health endpoint (4 retries left).
+FAILED - RETRYING: [localhost]: Validate the candidate's application health endpoint (3 retries left).
+FAILED - RETRYING: [localhost]: Validate the candidate's application health endpoint (2 retries left).
+FAILED - RETRYING: [localhost]: Validate the candidate's application health endpoint (1 retries left).
+FAILED - RETRYING: [localhost]: Validate the candidate's application health endpoint (0 retries left).
+[ERROR]: Task failed: Module failed: Status code was -1 and not [200]: Connection failure: [Errno 104] Connection reset by peer
+Origin: /mnt/g/knowledge-base-helpdesk/ansible/rollback-demo.yml:76:11
+
+74               - "{{ candidate_image }}"
+75
+76         - name: Validate the candidate's application health endpoint
+             ^ column 11
+
+fatal: [localhost]: FAILED! => {"attempts": 5, "changed": false, "content": "", "elapsed": 0, "msg": "Status code was -1 and not [200]: Connection failure: [Errno 104] Connection reset by peer", "redirected": false, "status": -1, "url": "http://127.0.0.1:18084/actuator/health"}
+
+TASK [Remove the candidate that failed application validation] *****************
+changed: [localhost]
+
+TASK [Restore the previously known-good application image] *********************
+changed: [localhost]
+
+TASK [Wait for the restored application health endpoint] ***********************
+FAILED - RETRYING: [localhost]: Wait for the restored application health endpoint (29 retries left).
+FAILED - RETRYING: [localhost]: Wait for the restored application health endpoint (28 retries left).
+FAILED - RETRYING: [localhost]: Wait for the restored application health endpoint (27 retries left).
+FAILED - RETRYING: [localhost]: Wait for the restored application health endpoint (26 retries left).
+FAILED - RETRYING: [localhost]: Wait for the restored application health endpoint (25 retries left).
+ok: [localhost]
+
+TASK [Confirm recovery succeeded] **********************************************
+ok: [localhost] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Report expected candidate failure and successful rollback] ***************
+ok: [localhost] => {
+    "msg": "The intentionally unsuitable candidate failed health validation; knowledge-base-helpdesk:1.0.2 was restored and reports UP."
+}
+
+PLAY RECAP *********************************************************************
+localhost                  : ok=11   changed=4    unreachable=0    failed=0    skipped=0    rescued=1    ignored=0   
+
+exit code: 0

@@ -1,0 +1,20 @@
+# Final Maven results, 2026-11-01 13:20:00 +0530, Java 25.0.4.1, Maven 3.10.0
+
+## 1) mvn -B clean verify   (Selenium disabled by default -> its 6 tests are reported as SKIPPED, not passed)
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 26.03 s -- in com.knowledgebase.helpdesk.controller.AccessControlIntegrationTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.017 s -- in com.knowledgebase.helpdesk.controller.ArticleLinksTest
+[WARNING] Tests run: 6, Failures: 0, Errors: 0, Skipped: 6, Time elapsed: 0.234 s -- in com.knowledgebase.helpdesk.selenium.HelpdeskSeleniumTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.085 s -- in com.knowledgebase.helpdesk.service.ArticleServiceTest
+[INFO] Tests run: 25, Failures: 0, Errors: 0, Skipped: 6
+[INFO] BUILD SUCCESS
+[INFO] Total time:  59.779 s
+
+## 2) Selenium journeys executed for real (app = copy of the JAR on :18082, Chrome = selenium/standalone-chrome container on :24444)
+##    mvn -B -Dselenium.enabled=true -Dselenium.remoteUrl=http://localhost:24444 -DbaseUrl=http://host.docker.internal:18082 -Dtest=HelpdeskSeleniumTest test
+[INFO] Running com.knowledgebase.helpdesk.selenium.HelpdeskSeleniumTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 55.09 s -- in com.knowledgebase.helpdesk.selenium.HelpdeskSeleniumTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+[INFO] Total time:  01:13 min
+
+## Combined: 25 tests = 6 unit (ArticleServiceTest) + 2 unit (ArticleLinksTest) + 11 HTTP integration (AccessControlIntegrationTest) + 6 Selenium. 0 failures.

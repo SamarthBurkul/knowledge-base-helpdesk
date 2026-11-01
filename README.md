@@ -24,10 +24,12 @@ of solutions.
 ## Main Features
 
 - Session-based user authentication with BCrypt password hashing
+- Enterprise-style responsive UI with light/dark themes (see [User Interface](#user-interface))
 - Role-based authorization (USER, SUPPORT, ADMIN)
-- Modernized enterprise-style UI with responsive layouts and accessible controls
-- Dashboard metrics: total articles, published count, draft count, resolved count, active user count
-- Admin-only user and role overview table on the dashboard
+- Dashboard metrics: total, published, resolved and (for ADMIN/SUPPORT) draft counts
+- Admin-only Users & roles page (`/admin/users`) and team panel on the dashboard
+- Draft articles are visible only to ADMIN and SUPPORT (enforced on the server)
+- Server-side validation (required fields, length limits, valid status) with field messages
 - Knowledge article search (by title, description, or solution text)
 - Knowledge article listing with status badges (PUBLISHED, DRAFT, RESOLVED)
 - Knowledge article detail view with author, timestamp, and formatted solution panel
@@ -36,6 +38,26 @@ of solutions.
 - Spring Boot Actuator health endpoint (`/actuator/health`) exposed for monitoring
 - Docker container health check using the Actuator health endpoint
 
+## User Interface
+
+The UI is server-rendered with Thymeleaf and a small, dependency-free
+progressive-enhancement script. Every page still works with JavaScript disabled.
+
+- **Design system:** `src/main/resources/static/css/style.css` (tokens for colour, type, spacing,
+  radii, shadows; light and dark themes; responsive breakpoints at 1180/1024/760 px).
+- **Application shell:** `templates/fragments/layout.html` (head, SVG icon sprite, collapsible
+  sidebar / mobile drawer, top bar with global search, profile menu, toasts, confirm dialog).
+- **Behaviour:** `src/main/resources/static/js/app.js` (theme toggle and collapsed sidebar
+  remembered in `localStorage`, debounced live search against `/articles`, inline validation,
+  unsaved-changes guard, delete confirmation, `/` keyboard shortcut to search).
+- **Error pages:** `templates/error.html` renders 400/403/404/405/500 without exposing exception details.
+- Navigation and actions follow the signed-in role; authorization is still enforced in the controllers.
+
+Screenshots of the redesign (desktop 1440 px, laptop 1024 px, tablet 820 px, mobile 390 px,
+plus dark theme) are in [`evidence/ui-redesign-2026-10-20/`](evidence/ui-redesign-2026-10-20/).
+The final verification set (every role, desktop/tablet/mobile, light/dark, with a horizontal-overflow
+check per page) is in [`evidence/final-verification-2026-11-01/ui-screenshots/`](evidence/final-verification-2026-11-01/ui-screenshots/).
+
 ## DevOps Features
 
 - Git and GitHub with feature branch workflow
@@ -43,7 +65,8 @@ of solutions.
 - Merge conflict demonstration and resolution (dedicated branches)
 - Jenkins CI/CD pipeline (Windows-compatible `bat` and PowerShell steps)
 - Maven build automation
-- Selenium automated browser testing (4 UI journey tests)
+- HTTP integration tests for role enforcement and page rendering (11 tests)
+- Selenium automated browser testing (6 UI journeys, Chrome in Docker)
 - Docker containerization with `HEALTHCHECK` directive
 - Docker image versioning
 - Docker Hub publishing (opt-in, requires credential configuration)
@@ -71,13 +94,14 @@ of solutions.
 | `/login` | GET, POST | All (unauthenticated) | Login page |
 | `/logout` | GET | Authenticated | Session invalidation |
 | `/dashboard` | GET | Authenticated | Dashboard with metrics |
-| `/articles` | GET | Authenticated | Article directory with search |
+| `/articles` | GET | Authenticated | Article directory with search. Optional query parameters: `keyword`, `status` (`DRAFT`/`PUBLISHED`/`RESOLVED`), `sort` (`updated`, `title`; default is creation order), `view` (`list`, `table`) |
 | `/articles/{id}` | GET | Authenticated | Article detail view |
 | `/articles/new` | GET | ADMIN, SUPPORT | Article creation form |
 | `/articles/create` | POST | ADMIN, SUPPORT | Save new article |
 | `/articles/edit/{id}` | GET | ADMIN, SUPPORT | Article edit form |
 | `/articles/update/{id}` | POST | ADMIN, SUPPORT | Save updated article |
 | `/articles/delete/{id}` | POST | ADMIN only | Delete article |
+| `/admin/users` | GET | ADMIN only | Read-only user and role directory (others are redirected to the dashboard) |
 | `/actuator/health` | GET | All | Spring Boot health endpoint |
 
 ## Project Structure
@@ -92,11 +116,18 @@ knowledge-base-helpdesk/
 │   ├── inventory.ini
 │   └── rollback-demo.yml
 ├── docs/
+│   ├── Backlog.md, User-Stories.md, SRS.md, Scope.md, Definition-of-Done.md, ...
+│   ├── Demo-Script.md
 │   ├── Deployment.md
 │   ├── Git-Collaboration-And-Merge-Conflict.md
 │   └── Jenkins-Pipeline.md
 ├── evidence/
+│   ├── final-verification-2026-11-01/   (latest genuine results)
+│   ├── ui-redesign-2026-10-20/
+│   ├── selenium-2026-10-14/
 │   └── DevOps-Verification.md
+├── jenkins/
+│   └── Knowledge-Base-Helpdesk-CI.config.xml
 ├── src/
 │   ├── main/
 │   │   ├── java/com/knowledgebase/helpdesk/
@@ -174,306 +205,157 @@ java -jar target/knowledge-base-helpdesk-1.0.0.jar --server.port=8082
 
 ## Running Tests
 
-### Unit Tests Only
+The suite has 25 tests:
+
+| Class | Type | Tests | What it proves |
+|---|---|---:|---|
+| `ArticleServiceTest` | Unit | 6 | Create, find, search, status filter, sort, delete, author counts |
+| `ArticleLinksTest` | Unit | 2 | Filter/view URLs are built and encoded correctly |
+| `AccessControlIntegrationTest` | HTTP integration (real Tomcat + Thymeleaf on a random port) | 11 | Every page renders for every role; USER/SUPPORT cannot create/edit/delete/manage users **even with direct POST requests**; drafts are hidden from USER on the server; validation; session ID changes on login; friendly 404 |
+| `HelpdeskSeleniumTest` | Selenium browser journeys | 6 | Login, search, SUPPORT creates and edits an article, USER is blocked from creating, ADMIN deletes after the confirmation dialog |
+
+### Unit and integration tests (no browser needed)
 
 ```powershell
-mvn -B test
+mvn -B clean verify
 ```
 
-Latest recorded results (from `target/surefire-reports/`):
+Expected: `Tests run: 25, Failures: 0, Errors: 0, Skipped: 6` and `BUILD SUCCESS`.
+The 6 skipped tests are the Selenium journeys. **Skipped is not passed**: they only
+run when `-Dselenium.enabled=true` is given (next section).
 
-| Suite | Run | Passed | Skipped | Failures | Errors |
-|---|---|---|---|---|---|
-| `ArticleServiceTest` | 3 | 3 | 0 | 0 | 0 |
-| `HelpdeskSeleniumTest` | 4 | 0 | 4 | 0 | 0 |
-| **Total** | **7** | **3** | **4** | **0** | **0** |
+### Selenium journeys (Chrome in Docker, no local Chrome driver needed)
 
-Reported build status: **`BUILD SUCCESS`**
-
-The four Selenium tests (`userCanLoginSuccessfully`, `userCanSearchKnowledgeArticle`,
-`supportStaffCanCreateArticle`, `normalUserCannotAccessCreateArticle`) were **skipped**
-because `-Dselenium.enabled=true` was not set. Skipping is the intended behaviour
-for local unit-test runs. These tests are not counted as passing and do not
-constitute browser end-to-end verification.
-
-### Local Selenium Tests
-
-The Selenium suite uses a fresh remote browser session per test. Start the
-official browser container from PowerShell:
+Local Chrome start-up is unreliable on this Windows machine, so the journeys run in
+the `selenium/standalone-chrome` container and reach the app through
+`host.docker.internal`:
 
 ```powershell
-docker run --detach --name helpdesk-selenium `
-  --publish 4444:4444 --shm-size=2g selenium/standalone-chrome:latest
+# 1. Start the app from a copy of the JAR (Windows locks a running JAR)
+mvn -B -DskipTests package
+New-Item -ItemType Directory -Force ci-app | Out-Null
+Copy-Item target\knowledge-base-helpdesk-1.0.0.jar ci-app\app-under-test.jar -Force
+Start-Process java -ArgumentList '-jar','ci-app\app-under-test.jar','--server.port=18082'
+
+# 2. Start Chrome (Selenium Grid) in Docker
+docker run -d --name selenium-chrome-local -p 24444:4444 --shm-size=2g selenium/standalone-chrome:latest
+
+# 3. Run the journeys (wait until http://localhost:24444/status shows "ready": true)
+mvn -B "-Dselenium.enabled=true" "-Dselenium.remoteUrl=http://localhost:24444" "-DbaseUrl=http://host.docker.internal:18082" -Dtest=HelpdeskSeleniumTest test
+
+# 4. Clean up
+docker rm -f selenium-chrome-local
+Get-NetTCPConnection -LocalPort 18082 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
 ```
 
-Wait for `http://localhost:4444/status` to report `value.ready: true`, then
-run the four UI journeys against the running application:
+Expected: `Tests run: 6, Failures: 0, Errors: 0, Skipped: 0`. Screenshots are written to `test-output/`.
 
-```powershell
-mvn "-Dtest=HelpdeskSeleniumTest" `
-  "-Dselenium.enabled=true" `
-  "-Dselenium.remoteUrl=http://localhost:4444" `
-  "-DbaseUrl=http://host.docker.internal:8082" test
-```
-
-For the complete unit and Selenium suite, omit the test selector:
-
-```powershell
-mvn "-Dselenium.enabled=true" `
-  "-Dselenium.remoteUrl=http://localhost:4444" `
-  "-DbaseUrl=http://host.docker.internal:8082" test
-```
-
-Maven writes JUnit XML and text reports under `target/surefire-reports/`;
-Selenium screenshots are written to `test-output/`. Do not commit local
-screenshots or reports unless they are intentionally selected as evidence.
+Latest verified results (2026-11-01) are in
+[`evidence/final-verification-2026-11-01/`](evidence/final-verification-2026-11-01/README.md).
 
 ---
 
 ## Docker
 
-### Build and Run
-
-The local Docker image is built from the packaged JAR:
-
 ```powershell
-mvn -DskipTests package
-docker build --tag knowledge-base-helpdesk:1.0.1 .
+mvn -B clean verify                                   # builds target/knowledge-base-helpdesk-1.0.0.jar
+docker build --tag knowledge-base-helpdesk:1.0.2 .
+docker run -d --name helpdesk-demo --restart unless-stopped -p 8082:8080 knowledge-base-helpdesk:1.0.2
+docker ps --filter name=helpdesk-demo                 # STATUS shows "(healthy)" after ~20 s
+curl http://localhost:8082/actuator/health            # {"status":"UP",...}
+docker logs --tail 20 helpdesk-demo
+docker stop helpdesk-demo; docker start helpdesk-demo # lifecycle demo
+docker rm -f helpdesk-demo                            # remove when finished
 ```
 
-The `Dockerfile` targets `eclipse-temurin:25-jre`, copies the JAR, exposes
-port 8080, and includes a `HEALTHCHECK` directive:
+Image details: `eclipse-temurin:25-jre` base, runs as the unprivileged `helpdesk` user,
+exposes 8080, `TZ=Asia/Kolkata` (override with `-e TZ=...`). The `HEALTHCHECK` uses bash's
+built-in `/dev/tcp` because the JRE image has no `curl`/`wget`; it is healthy only when
+`/actuator/health` answers HTTP 200.
 
-```dockerfile
-HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost:8080/actuator/health || exit 1
-```
-
-Spring Boot with Java 25 typically takes 3–7 seconds to initialize before the
-health endpoint responds. Polling immediately after `docker run` without a retry
-loop will produce connection-refused or connection-reset errors. Always allow
-the start-period to elapse and use a retry loop when checking health
-programmatically.
-
-To start a disposable verification container:
-
-```powershell
-docker run --detach --name helpdesk-verify --publish 18085:8080 knowledge-base-helpdesk:1.0.1
-
-# Poll until the health endpoint reports UP (up to 60 seconds)
-$ready = $false
-for ($i = 0; $i -lt 30; $i++) {
-    try {
-        $h = Invoke-RestMethod "http://localhost:18085/actuator/health"
-        if ($h.status -eq "UP") { $h; $ready = $true; break }
-    } catch { Start-Sleep -Seconds 2 }
-}
-if (-not $ready) { docker logs helpdesk-verify; throw "Health check failed" }
-
-# Demonstrate container lifecycle commands
-docker logs helpdesk-verify
-docker inspect helpdesk-verify
-docker stop helpdesk-verify
-docker start helpdesk-verify
-docker restart helpdesk-verify
-docker rm --force helpdesk-verify
-```
-
-> **Docker Desktop requirement:** Docker commands require Docker Desktop to be
-> running and its daemon to be accessible. If `docker ps` returns
-> `Docker Desktop is unable to start`, the Windows service `com.docker.service`
-> may need to be started — which requires Administrator privileges. Launch Docker
-> Desktop from the Start Menu or use an elevated prompt. Do not assume the daemon
-> is running without verifying.
-
-For full deployment and Ansible guidance see [docs/Deployment.md](docs/Deployment.md).
+Ports used on this machine: 8082 demo container, 18084 Ansible-managed container,
+18082/18083/24444 CI test run, 8081 Jenkins, 8080 is taken by another program.
 
 ---
 
 ## Jenkins CI/CD
 
-The pipeline is defined in the root [`Jenkinsfile`](Jenkinsfile) and is
-configured for Windows Jenkins (bat and PowerShell steps). Jenkins 2.580.1
-runs locally at `http://localhost:8081/`.
+The [`Jenkinsfile`](Jenkinsfile) stages: Checkout → Tool check → Compile → Unit and
+integration tests → Package JAR → Start application → Selenium tests (Chrome container)
+→ Docker image build (`knowledge-base-helpdesk:ci-<build>`) → Temporary-container
+deployment → Deployment health gate (HTTP `UP` **and** Docker `healthy`) → optional
+Docker Hub publish. A failing test fails its stage, so no image is built or deployed.
+JUnit reports, the JAR, Selenium screenshots and logs are published on every run.
 
-Pipeline stages:
-
-1. **Checkout** — checks out the configured SCM revision
-2. **Maven build** — packages the JAR, skipping tests at this stage
-3. **Unit tests** — runs `ArticleServiceTest`; build fails here on any test failure
-4. **Start app for Selenium** — starts the packaged JAR on port 18082, polls `/actuator/health` with up to 30 retries
-5. **Selenium tests** — starts `selenium/standalone-chrome` on port 24444, runs the four browser journeys
-6. **Full test suite** — runs all tests with Selenium enabled
-7. **Docker image build** — builds a tagged local image
-8. **Temporary-container deployment** — runs the image on port 18083
-9. **Health check** — polls `/actuator/health` on port 18083 with a 30-attempt retry loop; dumps logs and fails if never healthy
-10. **Docker Hub publish (opt-in)** — conditional on `PUBLISH_TO_DOCKERHUB=true`; disabled by default
-
-The `post { always }` block kills the background JVM process, removes both
-temporary containers, publishes JUnit XML reports, and archives screenshots
-and application logs regardless of build outcome.
-
-> **Jenkins execution status:** A successful end-to-end run of
-> `Knowledge-Base-Helpdesk-CI` has not been confirmed by available evidence.
-> Jenkins requires user authentication at `http://localhost:8081/login` before
-> jobs can be triggered or inspected.
-
-For credential setup and detailed stage documentation see
-[docs/Jenkins-Pipeline.md](docs/Jenkins-Pipeline.md).
+**Status:** the existing job `Knowledge-Base-Helpdesk-CI` on `http://localhost:8081/`
+exists but has **no pipeline definition and has never run**. It must be pointed at this
+repository once, while signed in. Steps: [docs/Jenkins-Pipeline.md](docs/Jenkins-Pipeline.md).
+No Jenkins build result is claimed in this repository.
 
 ---
 
-## Ansible Deployment and Rollback
+## Ansible Deployment, Idempotency and Rollback
 
-Playbooks are in the `ansible/` directory and target Ubuntu WSL locally.
-Enable **Docker Desktop → Settings → Resources → WSL Integration** for Ubuntu
-before running them.
-
-**Deploy (first run creates the container; subsequent runs verify idempotence):**
+Ansible runs in WSL Ubuntu and controls Docker Desktop through
+`ansible/docker-desktop.sh`. The target is **this machine only** (`localhost`); no remote
+server is provisioned.
 
 ```bash
+# From Ubuntu WSL
 cd /mnt/g/knowledge-base-helpdesk
-export ANSIBLE_CONFIG=ansible/ansible.cfg
-ansible-playbook ansible/deploy.yml \
-  -e docker_cli=/mnt/g/knowledge-base-helpdesk/ansible/docker-desktop.sh
+export ANSIBLE_CONFIG=ansible/ansible.cfg      # needed: Ansible ignores a config in a world-writable folder
+D="-e docker_cli=/mnt/g/knowledge-base-helpdesk/ansible/docker-desktop.sh"
+
+ansible-playbook -i ansible/inventory.ini ansible/deploy.yml $D         # deploy 1.0.2 to :18084
+ansible-playbook -i ansible/inventory.ini ansible/deploy.yml $D         # run again: changed=0 (idempotent)
+ansible-playbook -i ansible/inventory.ini ansible/rollback-demo.yml $D  # bad candidate fails -> previous image restored
+curl http://localhost:18084/actuator/health
 ```
 
-**Verify idempotence (second run):**
-
-```bash
-ansible-playbook ansible/deploy.yml \
-  -e docker_cli=/mnt/g/knowledge-base-helpdesk/ansible/docker-desktop.sh
-```
-
-The second run should report `changed=0, failed=0`.
-
-**Rollback demonstration:**
-
-```bash
-ansible-playbook ansible/rollback-demo.yml \
-  -e docker_cli=/mnt/g/knowledge-base-helpdesk/ansible/docker-desktop.sh
-```
-
-Previously recorded verification results (not re-executed during this README
-update):
-
-| Run | Outcome |
-|---|---|
-| Playbook syntax check (`--syntax-check`) | Passed |
-| First deploy (container created) | `changed=1, failed=0`; health check reached `UP` |
-| Idempotence check (second deploy) | `changed=0, failed=0` |
-| Rollback demo (nginx:alpine candidate → rescue) | `changed=4, rescued=1, failed=0`; health restored to `UP` |
-
-The deployment container is named `helpdesk-ansible` and runs on host port
-18084. The existing application on port 8082 is not affected.
-
-For full Ansible guidance see [docs/Deployment.md](docs/Deployment.md).
+Verified on 2026-11-01: deploy `changed=2`, re-run `changed=0`, rollback `rescued=1 failed=0`,
+re-run after rollback `changed=0`. Full output: [`evidence/final-verification-2026-11-01/`](evidence/final-verification-2026-11-01/README.md).
+Details: [docs/Deployment.md](docs/Deployment.md).
 
 ---
 
-## Recent Development and DevOps Work
+## Git Workflow
 
-### Application UI and Role-Based Access
-
-- Modernized the login screen, dashboard, knowledge-article directory, article
-  detail view, and article creation/editing forms with an enterprise SaaS design
-  system (CSS custom properties, Inter typography, responsive grid, accessible
-  focus indicators).
-- Added dashboard metrics for article totals and statuses.
-- Added an administrative user and role overview table visible only to users
-  with the ADMIN role, powered by `AuthService.findAllUsers()` and exposed via
-  `DashboardController`.
-- Improved responsive layouts, form labels with accessible `for`/`id` associations,
-  status badge indicators, breadcrumb navigation, and keyboard accessibility.
-- Preserved the `+ Create Article` link text required by existing Selenium tests
-  (`By.linkText("+ Create Article")`).
-
-### Containerization and Health Monitoring
-
-- Added a `HEALTHCHECK` directive to the `Dockerfile` using the Spring Boot
-  Actuator `/actuator/health` endpoint (15-second start period, 10-second
-  interval, 3 retries).
-- Documented the startup delay root cause: Docker's proxy binds the host port
-  immediately on `docker run`, but Tomcat needs a few seconds to finish
-  initializing. Polling without a retry loop hits this window and causes
-  connection errors.
-
-### Jenkins CI/CD Pipeline
-
-- Pipeline steps use Windows-compatible `bat` and `powershell` commands.
-- Build and test failures stop subsequent stages (fail-fast).
-- Health check uses a 30-attempt polling loop with 2-second sleeps.
-- Temporary containers are cleaned up in `post { always }` regardless of outcome.
-- JUnit XML reports and Selenium screenshots are archived on every run.
-
-### Ansible Deployment and Rollback
-
-Previously recorded verification includes playbook syntax validation, deployment,
-an idempotence check with `changed=0`, and a simulated deployment failure using
-`nginx:alpine` followed by automatic rescue and recovery to a healthy application
-version. These results were not re-executed during this README update. Refer to
-[evidence/DevOps-Verification.md](evidence/DevOps-Verification.md) for the
-exact commands and recorded outputs.
-
-### Git Branching and Merge Conflict Demonstration
-
-- Feature branch `feature/ui-modernization-devops` was created from `develop`
-  for all UI and DevOps improvements in this phase.
-- Dedicated demonstration branches (`demo/conflict-branch-a` and
-  `demo/conflict-branch-b`) were created from a common base commit to simulate
-  two teams making conflicting edits to the same file.
-- The merge was attempted, a genuine `CONFLICT (content)` was produced in
-  `docs/demo/conflict-demo.md`, the conflict markers were manually resolved into
-  a unified version, and the resolution was committed (merge commit `9555e3b`).
-- See [docs/Git-Collaboration-And-Merge-Conflict.md](docs/Git-Collaboration-And-Merge-Conflict.md)
-  for the full step-by-step log including commit IDs, conflict markers, and the
-  resolved content.
-
-### Test Results (Latest Local Run)
-
-Command: `mvn -B test`
-
-| Result | Count |
-|---|---:|
-| Tests run | 7 |
-| Passed | 3 |
-| Skipped | 4 |
-| Failures | 0 |
-| Errors | 0 |
-
-Recorded build status: **`BUILD SUCCESS`**
-
-The four Selenium tests were skipped because `-Dselenium.enabled=true` was not
-passed. This is expected in a local unit-test invocation. It does not mean all
-browser tests passed — browser-based verification requires an active Selenium
-Grid or standalone Chrome container.
+- `main` ← `develop` ← `feature/*` branches, merged through GitHub pull requests
+  (#1 `feature/core-helpdesk`, #2 `feature/ui-modernization-devops`).
+- Release tag `v1.0.0` (on GitHub) marks the first release.
+- Merge-conflict demonstration on `demo/conflict-*` branches (merge commit `9555e3b`); see
+  [docs/Git-Collaboration-And-Merge-Conflict.md](docs/Git-Collaboration-And-Merge-Conflict.md).
+  These demo branches exist in the local repository only.
+- Current work: `feature/enterprise-ui-redesign` (UI redesign, security fixes, tests, DevOps fixes).
 
 ---
 
-## Completion and Status
+## Completion and Status (verified 2026-11-01)
 
-| Component | Status | Notes |
+| Component | Status | Evidence |
 |---|---|---|
-| Core application logic | ✅ Implemented and verified | 3/3 unit tests pass; `BUILD SUCCESS` |
-| Role-based access control | ✅ Implemented and verified | ADMIN, SUPPORT, USER roles enforced in controllers |
-| Modernized enterprise UI | ✅ Implemented and verified | All 5 templates updated; 0 test regressions |
-| Admin user & role overview | ✅ Implemented and verified | Dashboard table rendered for ADMIN role |
-| Docker build | ✅ Implemented | JAR present; image buildable from `Dockerfile` |
-| Docker `HEALTHCHECK` | ✅ Implemented | Added to `Dockerfile`; uses Actuator health endpoint |
-| Docker Desktop daemon | ⚠️ Requires manual start | `com.docker.service` must be running; may need Administrator |
-| Ansible deploy + idempotence | ✅ Previously verified | `changed=0` on second run; not re-run during README update |
-| Ansible rollback demo | ✅ Previously verified | `rescued=1, failed=0`; not re-run during README update |
-| Git feature branches | ✅ Implemented | `feature/ui-modernization-devops` active on `develop` |
-| Merge conflict demo | ✅ Implemented | Conflict created and resolved on dedicated demo branches |
-| Selenium browser tests | ⚠️ Not yet end-to-end verified | 4 tests skipped locally; requires active browser container |
-| Jenkins pipeline execution | ⚠️ Pending | Authentication required at `http://localhost:8081/login` |
-| Docker Hub publishing | ⚠️ Pending credentials | Disabled by default; requires `dockerhub` Jenkins credential |
-| Remote Ansible target | ⚠️ Not configured | Inventory targets localhost/WSL only; no remote host available |
+| Login/logout, dashboard, CRUD, search, status filter | ✅ Verified | Integration + Selenium tests |
+| Role-based authorization enforced on the server | ✅ Verified | `AccessControlIntegrationTest` (direct POSTs rejected) |
+| Drafts hidden from USER (list, counts, dashboard, direct URL) | ✅ Fixed and verified | Integration test |
+| Validation and friendly error pages | ✅ Verified | Integration test, screenshots |
+| Responsive UI, light/dark themes | ✅ Verified | 67 screenshots, 0 pages with horizontal scrolling |
+| Maven build, 19 unit/integration tests | ✅ Pass | `maven-test-results.txt` |
+| 6 Selenium journeys (Chrome in Docker) | ✅ Pass (executed, not skipped) | `surefire-reports/`, `selenium-screenshots/` |
+| Docker image, health check, run/stop/start/remove | ✅ Verified | `docker-lifecycle.txt` |
+| Ansible deploy, idempotency, rollback (local target) | ✅ Verified | `ansible-*.txt` |
+| Jenkins pipeline run | ⏳ Needs one-time job setup while signed in | [docs/Jenkins-Pipeline.md](docs/Jenkins-Pipeline.md) |
+| Docker Hub publish | ⏳ Optional; no `dockerhub` credential exists in Jenkins | [docs/Jenkins-Pipeline.md](docs/Jenkins-Pipeline.md) |
+| Remote server provisioning | ❌ Not configured | Inventory targets localhost only |
 
-> **Credentials policy:** Never store Docker Hub tokens, Jenkins passwords, SSH
-> keys, or any other secrets in the repository. Use the Jenkins credential store
-> with ID `dockerhub` for Docker Hub access tokens. See
-> [docs/Jenkins-Pipeline.md](docs/Jenkins-Pipeline.md) for the exact setup steps.
+### Known limitations
+
+- Data is in memory: articles reset when the app restarts; users are fixed in code (no add/edit users UI).
+- Logins are session-based without CSRF tokens; the session cookie is `SameSite=Lax` and `HttpOnly`, which blocks cross-site POSTs in modern browsers.
+- Ansible targets only the local Docker Desktop; there is no remote host.
+- `mvn verify` cannot repackage the JAR while a process is running that same JAR (Windows file lock); run a copy as shown above.
+
+> **Credentials policy:** never commit Docker Hub tokens, Jenkins passwords, SSH keys or
+> other secrets. Use the Jenkins credential store (ID `dockerhub`).
 
 ---
 
@@ -481,8 +363,10 @@ Grid or standalone Chrome container.
 
 | Document | Description |
 |---|---|
-| [docs/Jenkins-Pipeline.md](docs/Jenkins-Pipeline.md) | Pipeline stage reference, Docker Hub PAT generation, and Jenkins credential configuration |
-| [docs/Deployment.md](docs/Deployment.md) | Docker and Ansible deployment commands, idempotence, and rollback guide |
-| [docs/Git-Collaboration-And-Merge-Conflict.md](docs/Git-Collaboration-And-Merge-Conflict.md) | Full step-by-step merge conflict creation and resolution log |
-| [evidence/DevOps-Verification.md](evidence/DevOps-Verification.md) | Timestamped verification evidence including test output, Docker diagnosis, and Ansible run summaries |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Branch strategy, commit message conventions, and workflow rules |
+| [docs/Demo-Script.md](docs/Demo-Script.md) | 5–10 minute faculty demonstration script and DevOps concept explanations |
+| [docs/Jenkins-Pipeline.md](docs/Jenkins-Pipeline.md) | Pipeline stages, one-time job setup, Docker Hub credential |
+| [docs/Deployment.md](docs/Deployment.md) | Docker and Ansible deployment, idempotency, rollback |
+| [docs/Git-Collaboration-And-Merge-Conflict.md](docs/Git-Collaboration-And-Merge-Conflict.md) | Merge conflict creation and resolution log |
+| [evidence/final-verification-2026-11-01/README.md](evidence/final-verification-2026-11-01/README.md) | Latest genuine test, Docker, Ansible and UI evidence |
+| [docs/Backlog.md](docs/Backlog.md), [docs/User-Stories.md](docs/User-Stories.md), [docs/SRS.md](docs/SRS.md), [docs/Definition-of-Done.md](docs/Definition-of-Done.md) | Planning and scope |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Branch strategy and commit conventions |

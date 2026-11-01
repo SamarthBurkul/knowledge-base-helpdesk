@@ -1,5 +1,14 @@
 # DevOps Verification & Implementation Evidence
 
+> **Correction (2026-11-01).** This record from 2026-10-20 is kept as history, but parts of it are superseded:
+> - The `wget`-based `HEALTHCHECK` below never worked: the `eclipse-temurin:25-jre` image has no `wget`, and no image
+>   built at that time contained the instruction. It was replaced by a working probe and verified.
+> - The test counts below are from before the redesign. The current suite has 25 tests, including 6 Selenium journeys
+>   that were executed (not skipped).
+> - The Jenkins job was found to have no pipeline definition at all.
+>
+> Current, re-executed evidence: [final-verification-2026-11-01/README.md](final-verification-2026-11-01/README.md).
+
 **Updated Date:** 2026-10-20  
 **Repository Branch:** `feature/ui-modernization-devops`  
 **Base Branch:** `develop` (Synchronized with `origin/develop`, Tag `v1.0.0` preserved)  
