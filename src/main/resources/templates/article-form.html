@@ -1,97 +1,195 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title th:text="${pageTitle} + ' — Knowledge Base Helpdesk'">Article Form</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/style.css">
-</head>
+<head th:replace="~{fragments/layout :: head(${pageTitle})}"></head>
 <body>
 
-<nav>
-    <div class="brand">
-        <span class="brand-icon" aria-hidden="true">📚</span>
-        Knowledge Base Helpdesk
-    </div>
-    <div class="nav-links">
-        <a href="/dashboard">Dashboard</a>
-        <a href="/articles">Articles</a>
-        <div class="nav-divider" aria-hidden="true"></div>
-        <a href="/logout">Sign Out</a>
-    </div>
-</nav>
+<svg th:replace="~{fragments/layout :: icons}"></svg>
+<a class="skip-link" href="#main">Skip to content</a>
 
-<main class="container">
+<div class="app" th:with="isEdit=${article.id != null},
+                          cancelUrl=${article.id != null ? '/articles/' + article.id : '/articles'}">
+    <aside th:replace="~{fragments/layout :: sidebar(${article.id != null ? 'articles' : 'new'})}"></aside>
 
-    <div class="breadcrumb" aria-label="Breadcrumb">
-        <a href="/dashboard">Dashboard</a>
-        <span class="breadcrumb-sep" aria-hidden="true">›</span>
-        <a href="/articles">Articles</a>
-        <span class="breadcrumb-sep" aria-hidden="true">›</span>
-        <span th:text="${pageTitle}">Form</span>
-    </div>
+    <div class="app-main">
+        <header th:replace="~{fragments/layout :: topbar(true)}"></header>
 
-    <div class="form-card">
+        <main class="page" id="main" tabindex="-1">
 
-        <h1 th:text="${pageTitle}">Article Form</h1>
-
-        <form method="post" th:action="${action}">
-
-            <label for="title">Title</label>
-            <input type="text"
-                   id="title"
-                   name="title"
-                   th:value="${article.title}"
-                   placeholder="Enter a descriptive article title"
-                   required>
-
-            <label for="description">Problem Description</label>
-            <textarea id="description"
-                      name="description"
-                      rows="5"
-                      required
-                      placeholder="Describe the problem this article addresses"
-                      th:text="${article.description}"></textarea>
-
-            <label for="solution">Solution</label>
-            <textarea id="solution"
-                      name="solution"
-                      rows="8"
-                      required
-                      placeholder="Provide the step-by-step solution"
-                      th:text="${article.solution}"></textarea>
-
-            <label for="status">Status</label>
-            <select id="status" name="status">
-                <option value="DRAFT"
-                        th:selected="${article.status != null and article.status.name() == 'DRAFT'}">
-                    Draft
-                </option>
-
-                <option value="PUBLISHED"
-                        th:selected="${article.status == null or article.status.name() == 'PUBLISHED'}">
-                    Published
-                </option>
-
-                <option value="RESOLVED"
-                        th:selected="${article.status != null and article.status.name() == 'RESOLVED'}">
-                    Resolved
-                </option>
-            </select>
-
-            <div class="actions">
-                <button type="submit">💾 Save Article</button>
-                <a class="button button-secondary" href="/articles">Cancel</a>
+            <div class="page-header">
+                <div>
+                    <nav class="breadcrumbs" aria-label="Breadcrumb">
+                        <ol>
+                            <li><a href="/dashboard">Dashboard</a></li>
+                            <li><a href="/articles">Knowledge base</a></li>
+                            <li th:if="${isEdit}"><a th:href="${cancelUrl}" th:text="${article.title}">Article</a></li>
+                            <li><span aria-current="page" th:text="${isEdit} ? 'Edit' : 'New article'">New article</span></li>
+                        </ol>
+                    </nav>
+                    <h1 class="page-title" th:text="${pageTitle}">Create Knowledge Article</h1>
+                    <p class="page-subtitle" th:text="${isEdit} ? 'Update the content or status of this article. Changes are visible as soon as you save.' : 'Document a problem and its solution so users can resolve it on their own.'">
+                        Document a problem and its solution.
+                    </p>
+                </div>
             </div>
 
-        </form>
+            <form method="post" th:action="${action}" class="article-form"
+                  data-validate data-dirty-guard
+                  th:attr="data-loading-label=${isEdit} ? 'Saving…' : 'Creating…'">
 
+                <div class="callout callout-danger form-errors" role="alert" th:if="${errors != null and not #maps.isEmpty(errors)}">
+                    <svg class="icon" aria-hidden="true"><use href="#i-alert-circle"/></svg>
+                    <div>
+                        <strong>The article could not be saved.</strong>
+                        <ul>
+                            <li th:each="e : ${errors}" th:text="${e.value}">Error</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="form-layout">
+                    <section class="panel" aria-labelledby="content-heading">
+                        <div class="form-section">
+                            <h2 class="form-section-title" id="content-heading">Article content</h2>
+                            <p class="form-section-desc">Fields marked <span class="req" aria-hidden="true">*</span> are required.</p>
+
+                            <div class="field" th:classappend="${errors != null and errors.containsKey('title')} ? 'has-error'">
+                                <label class="label" for="title">Title <span class="req" aria-hidden="true">*</span></label>
+                                <input class="input input-lg" type="text" id="title" name="title"
+                                       th:value="${article.title}"
+                                       placeholder="e.g. Resetting a forgotten password"
+                                       required maxlength="150" autocomplete="off"
+                                       aria-describedby="title-hint"
+                                       th:attr="aria-invalid=${errors != null and errors.containsKey('title')} ? 'true' : null"
+                                       data-required-message="Enter a title for the article.">
+                                <p class="hint" id="title-hint">A short, specific title helps users find the article when they search.</p>
+                                <p class="field-error" id="title-error" th:if="${errors != null and errors.containsKey('title')}">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-alert-circle"/></svg>
+                                    <span th:text="${errors.get('title')}">Error</span>
+                                </p>
+                            </div>
+
+                            <div class="field" th:classappend="${errors != null and errors.containsKey('description')} ? 'has-error'">
+                                <div class="label-row">
+                                    <label class="label" for="description">Problem description <span class="req" aria-hidden="true">*</span></label>
+                                    <span class="char-count" id="description-count" aria-live="off"></span>
+                                </div>
+                                <textarea class="textarea" id="description" name="description" rows="4" required maxlength="2000"
+                                          placeholder="What is the user experiencing? Include any error messages they see."
+                                          aria-describedby="description-hint"
+                                          th:attr="aria-invalid=${errors != null and errors.containsKey('description')} ? 'true' : null"
+                                          data-counter="description-count"
+                                          data-required-message="Describe the problem this article solves."
+                                          th:text="${article.description}"></textarea>
+                                <p class="hint" id="description-hint">Shown in search results as the article summary.</p>
+                                <p class="field-error" id="description-error" th:if="${errors != null and errors.containsKey('description')}">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-alert-circle"/></svg>
+                                    <span th:text="${errors.get('description')}">Error</span>
+                                </p>
+                            </div>
+
+                            <div class="field" th:classappend="${errors != null and errors.containsKey('solution')} ? 'has-error'">
+                                <div class="label-row">
+                                    <label class="label" for="solution">Solution <span class="req" aria-hidden="true">*</span></label>
+                                    <span class="char-count" id="solution-count" aria-live="off"></span>
+                                </div>
+                                <textarea class="textarea" id="solution" name="solution" rows="9" required maxlength="10000"
+                                          placeholder="1. Open …&#10;2. Select …&#10;3. Confirm …"
+                                          aria-describedby="solution-hint"
+                                          th:attr="aria-invalid=${errors != null and errors.containsKey('solution')} ? 'true' : null"
+                                          data-counter="solution-count"
+                                          data-required-message="Provide the solution steps."
+                                          th:text="${article.solution}"></textarea>
+                                <p class="hint" id="solution-hint">Write one step per line. Line breaks are preserved when the article is displayed.</p>
+                                <p class="field-error" id="solution-error" th:if="${errors != null and errors.containsKey('solution')}">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-alert-circle"/></svg>
+                                    <span th:text="${errors.get('solution')}">Error</span>
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="form-footer">
+                            <span class="dirty-indicator" data-dirty-indicator hidden>Unsaved changes</span>
+                            <div class="form-footer-actions">
+                                <a class="btn btn-secondary" th:href="${cancelUrl}">Cancel</a>
+                                <button type="submit" class="btn btn-primary" data-submit>
+                                    <svg class="icon spinner" aria-hidden="true"><use href="#i-loader"/></svg>
+                                    <svg class="icon btn-icon" aria-hidden="true"><use href="#i-check-circle"/></svg>
+                                    <span data-label th:text="${isEdit} ? 'Save changes' : 'Save Article'">Save Article</span>
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <aside class="article-aside">
+                        <section class="panel" aria-labelledby="publishing-heading">
+                            <div class="form-section">
+                                <h2 class="form-section-title" id="publishing-heading">Publishing</h2>
+                                <p class="form-section-desc">Control who sees this article and where it appears.</p>
+                                <div class="field" th:classappend="${errors != null and errors.containsKey('status')} ? 'has-error'">
+                                    <label class="label" for="status">Status</label>
+                                    <select class="select" id="status" name="status" aria-describedby="status-help">
+                                        <option value="DRAFT"
+                                                th:selected="${article.status != null and article.status.name() == 'DRAFT'}">Draft</option>
+                                        <option value="PUBLISHED"
+                                                th:selected="${article.status == null or article.status.name() == 'PUBLISHED'}">Published</option>
+                                        <option value="RESOLVED"
+                                                th:selected="${article.status != null and article.status.name() == 'RESOLVED'}">Resolved</option>
+                                    </select>
+                                    <p class="field-error" id="status-error" th:if="${errors != null and errors.containsKey('status')}">
+                                        <svg class="icon" aria-hidden="true"><use href="#i-alert-circle"/></svg>
+                                        <span th:text="${errors.get('status')}">Error</span>
+                                    </p>
+                                </div>
+                                <ul class="status-options" id="status-help">
+                                    <li><span class="badge status-DRAFT">Draft</span><span>Work in progress, still being written.</span></li>
+                                    <li><span class="badge status-PUBLISHED">Published</span><span>Ready and recommended for users.</span></li>
+                                    <li><span class="badge status-RESOLVED">Resolved</span><span>The underlying issue has been fixed.</span></li>
+                                </ul>
+                            </div>
+                        </section>
+
+                        <section class="panel" th:if="${isEdit}" aria-labelledby="meta-heading">
+                            <div class="panel-head">
+                                <h2 class="panel-title" id="meta-heading">Details</h2>
+                            </div>
+                            <dl class="details">
+                                <div>
+                                    <dt>Article ID</dt>
+                                    <dd class="mono" th:text="'KB-' + ${#numbers.formatInteger(article.id, 4)}">KB-0001</dd>
+                                </div>
+                                <div>
+                                    <dt>Author</dt>
+                                    <dd th:text="${article.author != null ? article.author : '—'}">author</dd>
+                                </div>
+                                <div>
+                                    <dt>Last updated</dt>
+                                    <dd th:text="${article.updatedAt != null ? #temporals.format(article.updatedAt, 'd MMM yyyy, HH:mm') : '—'}">—</dd>
+                                </div>
+                            </dl>
+                        </section>
+
+                        <section class="panel" th:unless="${isEdit}" aria-labelledby="tips-heading">
+                            <div class="panel-head">
+                                <h2 class="panel-title" id="tips-heading">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg>Writing tips
+                                </h2>
+                            </div>
+                            <div class="panel-body">
+                                <ul class="access-list">
+                                    <li class="access-yes"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>Use the words users would search for</li>
+                                    <li class="access-yes"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>Keep each step short and actionable</li>
+                                    <li class="access-yes"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>Save as Draft until it's been reviewed</li>
+                                </ul>
+                            </div>
+                        </section>
+                    </aside>
+                </div>
+            </form>
+        </main>
     </div>
+</div>
 
-</main>
+<div th:replace="~{fragments/layout :: overlays}"></div>
 
 </body>
 </html>

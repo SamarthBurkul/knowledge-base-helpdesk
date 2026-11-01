@@ -1,121 +1,272 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard — Knowledge Base Helpdesk</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/style.css">
-</head>
+<head th:replace="~{fragments/layout :: head('Dashboard')}"></head>
 <body>
 
-<nav>
-    <div class="brand">
-        <span class="brand-icon" aria-hidden="true">📚</span>
-        Knowledge Base Helpdesk
-    </div>
-    <div class="nav-links">
-        <a href="/dashboard">Dashboard</a>
-        <a href="/articles">Articles</a>
-        <div class="nav-divider" aria-hidden="true"></div>
-        <div class="nav-user">
-            <span class="nav-username" th:text="${username}"></span>
-            <span class="role" th:text="${role}"></span>
-        </div>
-        <a href="/logout">Logout</a>
-    </div>
-</nav>
+<svg th:replace="~{fragments/layout :: icons}"></svg>
+<a class="skip-link" href="#main">Skip to content</a>
 
-<main class="container">
+<div class="app" th:with="canManage=${role == 'ADMIN' or role == 'SUPPORT'}">
+    <aside th:replace="~{fragments/layout :: sidebar('dashboard')}"></aside>
 
-    <div class="welcome-section">
-        <h1>Dashboard</h1>
-        <p>Welcome back, <strong th:text="${username}">User</strong>. Here is the operational summary of your knowledge base.</p>
-    </div>
+    <div class="app-main">
+        <header th:replace="~{fragments/layout :: topbar(true)}"></header>
 
-    <div class="cards">
-        <div class="card">
-            <h3>Total Articles</h3>
-            <p th:text="${articleCount}">0</p>
-        </div>
+        <main class="page" id="main" tabindex="-1">
 
-        <div class="card">
-            <h3>Published</h3>
-            <p th:text="${publishedCount}">0</p>
-        </div>
-
-        <div class="card">
-            <h3>Drafts</h3>
-            <p th:text="${draftCount}">0</p>
-        </div>
-
-        <div class="card">
-            <h3>Resolved</h3>
-            <p th:text="${resolvedCount}">0</p>
-        </div>
-
-        <div class="card">
-            <h3>Users</h3>
-            <p th:text="${userCount}">0</p>
-        </div>
-    </div>
-
-    <div class="actions">
-        <a class="button" href="/articles">
-            Browse Articles
-        </a>
-
-        <a class="button button-secondary"
-           th:if="${role == 'ADMIN' or role == 'SUPPORT'}"
-           href="/articles/new">
-            Create Article
-        </a>
-    </div>
-
-    <!-- Administrative User & Role Management Section -->
-    <section class="admin-section" th:if="${role == 'ADMIN'}" aria-labelledby="admin-users-heading" style="margin-top: 40px;">
-        <div class="section-header">
-            <div>
-                <h2 id="admin-users-heading">User & Role Management</h2>
-                <p class="subtitle" style="text-align: left; margin-bottom: 16px;">Directory of active system accounts and assigned access roles.</p>
+            <div class="welcome">
+                <div>
+                    <p class="welcome-eyebrow">
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#i-calendar"/></svg>
+                        <span th:text="${#temporals.format(#temporals.createNow(), 'EEEE, d MMMM yyyy')}">Monday, 1 January 2026</span>
+                    </p>
+                    <h1 class="page-title">Dashboard</h1>
+                    <p class="page-subtitle">
+                        Welcome back, <strong th:text="${username}">user</strong>.
+                        <span th:if="${role == 'ADMIN'}">Here's the state of your knowledge base and team.</span>
+                        <span th:if="${role == 'SUPPORT'}">Here's what's live and what still needs your attention.</span>
+                        <span th:if="${role == 'USER'}">Find answers to common problems in the knowledge base.</span>
+                    </p>
+                </div>
+                <div class="page-actions">
+                    <a class="btn btn-secondary" href="/articles">
+                        <svg class="icon" aria-hidden="true"><use href="#i-book"/></svg>Browse articles
+                    </a>
+                    <a class="btn btn-primary" th:if="${canManage}" href="/articles/new">
+                        <svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>Create article
+                    </a>
+                </div>
             </div>
-        </div>
 
-        <div class="table-container">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th scope="col">Username</th>
-                        <th scope="col">Assigned Role</th>
-                        <th scope="col">Permissions</th>
-                        <th scope="col">Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr th:each="u : ${users}">
-                        <td>
-                            <strong th:text="${u.username}">admin</strong>
-                        </td>
-                        <td>
-                            <span class="role" th:text="${u.role}">ADMIN</span>
-                        </td>
-                        <td>
-                            <span th:if="${u.role == 'ADMIN'}">Full access (create, edit, delete, manage users)</span>
-                            <span th:if="${u.role == 'SUPPORT'}">Authoring access (create, edit, publish)</span>
-                            <span th:if="${u.role == 'USER'}">Read-only knowledge portal access</span>
-                        </td>
-                        <td>
-                            <span class="status status-PUBLISHED">Active</span>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </section>
+            <!-- Article statistics: every figure links to the matching filtered list -->
+            <section class="panel" aria-labelledby="stats-heading">
+                <h2 id="stats-heading" class="sr-only">Article statistics</h2>
+                <div class="stats" th:classappend="${canManage} ? '' : 'stats-3'">
+                    <a class="stat" href="/articles">
+                        <span class="stat-label">
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#i-book"/></svg>Total articles
+                        </span>
+                        <span class="stat-value" th:text="${articleCount}">0</span>
+                        <span class="stat-foot">View all<svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg></span>
+                    </a>
+                    <a class="stat" href="/articles?status=PUBLISHED">
+                        <span class="stat-label"><span class="nav-dot dot-published" aria-hidden="true"></span>Published</span>
+                        <span class="stat-value" th:text="${publishedCount}">0</span>
+                        <span class="stat-foot">Live for all users<svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg></span>
+                    </a>
+                    <a class="stat" href="/articles?status=RESOLVED">
+                        <span class="stat-label"><span class="nav-dot dot-resolved" aria-hidden="true"></span>Resolved</span>
+                        <span class="stat-value" th:text="${resolvedCount}">0</span>
+                        <span class="stat-foot">Issue closed<svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg></span>
+                    </a>
+                    <a class="stat" href="/articles?status=DRAFT" th:if="${canManage}">
+                        <span class="stat-label"><span class="nav-dot dot-draft" aria-hidden="true"></span>Drafts</span>
+                        <span class="stat-value" th:text="${draftCount}">0</span>
+                        <span class="stat-foot">Not yet published<svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg></span>
+                    </a>
 
-</main>
+                    <div class="distribution" th:if="${articleCount > 0}">
+                        <div class="distribution-head">
+                            <span>Status distribution</span>
+                            <span class="muted"
+                                  th:text="${#numbers.formatDecimal(publishedCount * 100.0 / articleCount, 1, 0)} + '% published'">0% published</span>
+                        </div>
+                        <div class="bar" role="img"
+                             th:attr="aria-label=${canManage} ? |${publishedCount} published, ${resolvedCount} resolved, ${draftCount} drafts| : |${publishedCount} published, ${resolvedCount} resolved|">
+                            <span class="bar-published" th:if="${publishedCount > 0}"
+                                  th:style="'flex:' + ${publishedCount}"></span>
+                            <span class="bar-resolved" th:if="${resolvedCount > 0}"
+                                  th:style="'flex:' + ${resolvedCount}"></span>
+                            <span class="bar-draft" th:if="${draftCount > 0}"
+                                  th:style="'flex:' + ${draftCount}"></span>
+                        </div>
+                        <ul class="legend">
+                            <li><span class="nav-dot dot-published" aria-hidden="true"></span>Published <b th:text="${publishedCount}">0</b></li>
+                            <li><span class="nav-dot dot-resolved" aria-hidden="true"></span>Resolved <b th:text="${resolvedCount}">0</b></li>
+                            <li th:if="${canManage}"><span class="nav-dot dot-draft" aria-hidden="true"></span>Drafts <b th:text="${draftCount}">0</b></li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <div class="dash-grid">
+                <div class="dash-main">
+
+                    <!-- Recently updated articles -->
+                    <section class="panel" aria-labelledby="recent-heading">
+                        <div class="panel-head">
+                            <div>
+                                <h2 class="panel-title" id="recent-heading">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>Recently updated
+                                </h2>
+                                <p class="panel-desc">The latest changes across the knowledge base.</p>
+                            </div>
+                            <a class="panel-link" href="/articles?sort=updated">
+                                View all<svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+                            </a>
+                        </div>
+
+                        <ul class="feed" th:unless="${#lists.isEmpty(recentArticles)}">
+                            <li class="feed-item" th:each="a : ${recentArticles}">
+                                <span class="feed-icon" aria-hidden="true"><svg class="icon"><use href="#i-file"/></svg></span>
+                                <div class="feed-body">
+                                    <a class="feed-title" th:href="@{/articles/{id}(id=${a.id})}" th:text="${a.title}">Title</a>
+                                    <div class="feed-meta">
+                                        <span th:if="${a.author}" th:text="${a.author}">author</span>
+                                        <span class="sep" th:if="${a.author}" aria-hidden="true"></span>
+                                        <time th:datetime="${a.updatedAt}"
+                                              th:title="${#temporals.format(a.updatedAt, 'd MMM yyyy, HH:mm')}"
+                                              th:text="'Updated ' + ${@relativeTime.format(a.updatedAt)}">Updated just now</time>
+                                    </div>
+                                </div>
+                                <span class="badge" th:classappend="'status-' + ${a.status}"
+                                      th:text="${#strings.capitalize(#strings.toLowerCase(a.status))}">Published</span>
+                            </li>
+                        </ul>
+
+                        <div class="empty-state empty-compact" th:if="${#lists.isEmpty(recentArticles)}">
+                            <span class="empty-icon" aria-hidden="true"><svg class="icon"><use href="#i-inbox"/></svg></span>
+                            <p class="empty-title">No articles yet</p>
+                            <p class="empty-text" th:if="${canManage}">Create the first article to start building the knowledge base.</p>
+                            <p class="empty-text" th:unless="${canManage}">Articles will appear here once the support team publishes them.</p>
+                        </div>
+                    </section>
+
+                    <!-- Drafts awaiting publication (authors only) -->
+                    <section class="panel" th:if="${canManage}" aria-labelledby="drafts-heading">
+                        <div class="panel-head">
+                            <div>
+                                <h2 class="panel-title" id="drafts-heading">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-draft"/></svg>Drafts awaiting publication
+                                </h2>
+                                <p class="panel-desc">Review these and publish them when they're ready.</p>
+                            </div>
+                            <a class="panel-link" href="/articles?status=DRAFT" th:unless="${#lists.isEmpty(draftArticles)}">
+                                Open drafts<svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+                            </a>
+                        </div>
+
+                        <ul class="feed" th:unless="${#lists.isEmpty(draftArticles)}">
+                            <li class="feed-item" th:each="a, iter : ${draftArticles}" th:if="${iter.index < 5}">
+                                <span class="feed-icon" aria-hidden="true"><svg class="icon"><use href="#i-draft"/></svg></span>
+                                <div class="feed-body">
+                                    <a class="feed-title" th:href="@{/articles/edit/{id}(id=${a.id})}" th:text="${a.title}">Title</a>
+                                    <div class="feed-meta">
+                                        <span th:if="${a.author}" th:text="${a.author}">author</span>
+                                        <span class="sep" th:if="${a.author}" aria-hidden="true"></span>
+                                        <time th:datetime="${a.updatedAt}" th:text="'Updated ' + ${@relativeTime.format(a.updatedAt)}">Updated</time>
+                                    </div>
+                                </div>
+                                <span class="badge status-DRAFT">Draft</span>
+                            </li>
+                        </ul>
+
+                        <div class="empty-state empty-compact" th:if="${#lists.isEmpty(draftArticles)}">
+                            <span class="empty-icon" aria-hidden="true"><svg class="icon"><use href="#i-check-check"/></svg></span>
+                            <p class="empty-title">No drafts waiting</p>
+                            <p class="empty-text">Every article is published or resolved.</p>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="dash-side">
+
+                    <!-- Quick actions -->
+                    <section class="panel" aria-labelledby="actions-heading">
+                        <div class="panel-head">
+                            <h2 class="panel-title" id="actions-heading">
+                                <svg class="icon" aria-hidden="true"><use href="#i-zap"/></svg>Quick actions
+                            </h2>
+                        </div>
+                        <div class="quick-actions">
+                            <a class="quick-action" href="/articles" data-focus-search>
+                                <span class="quick-action-icon" aria-hidden="true"><svg class="icon"><use href="#i-search"/></svg></span>
+                                <span class="quick-action-text">
+                                    <span class="quick-action-title">Search the knowledge base</span>
+                                    <span class="quick-action-desc">Press <kbd class="kbd">/</kbd> anywhere to search</span>
+                                </span>
+                                <svg class="icon" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+                            </a>
+                            <a class="quick-action" th:if="${canManage}" href="/articles/new">
+                                <span class="quick-action-icon" aria-hidden="true"><svg class="icon"><use href="#i-plus"/></svg></span>
+                                <span class="quick-action-text">
+                                    <span class="quick-action-title">Write a new article</span>
+                                    <span class="quick-action-desc">Document a problem and its fix</span>
+                                </span>
+                                <svg class="icon" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+                            </a>
+                            <a class="quick-action" href="/articles?status=PUBLISHED">
+                                <span class="quick-action-icon" aria-hidden="true"><svg class="icon"><use href="#i-globe"/></svg></span>
+                                <span class="quick-action-text">
+                                    <span class="quick-action-title">Browse published solutions</span>
+                                    <span class="quick-action-desc">Articles that are live for everyone</span>
+                                </span>
+                                <svg class="icon" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+                            </a>
+                            <a class="quick-action" th:if="${role == 'ADMIN'}" href="/admin/users">
+                                <span class="quick-action-icon" aria-hidden="true"><svg class="icon"><use href="#i-users"/></svg></span>
+                                <span class="quick-action-text">
+                                    <span class="quick-action-title">Review users &amp; roles</span>
+                                    <span class="quick-action-desc">See who can read, write and manage</span>
+                                </span>
+                                <svg class="icon" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+                            </a>
+                        </div>
+                    </section>
+
+                    <!-- Access summary derived from the role rules enforced by the controllers -->
+                    <section class="panel" aria-labelledby="access-heading">
+                        <div class="panel-head">
+                            <h2 class="panel-title" id="access-heading">
+                                <svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg>Your access
+                            </h2>
+                            <span class="role-badge" th:classappend="'role-' + ${#strings.toLowerCase(role)}" th:text="${role}">USER</span>
+                        </div>
+                        <div class="panel-body">
+                            <ul class="access-list">
+                                <li class="access-yes"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"/></svg>Search and read articles</li>
+                                <li th:class="${canManage} ? 'access-yes' : 'access-no'">
+                                    <svg class="icon" aria-hidden="true"><use th:href="${canManage} ? '#i-check-circle' : '#i-lock'"/></svg>Create and edit articles
+                                </li>
+                                <li th:class="${role == 'ADMIN'} ? 'access-yes' : 'access-no'">
+                                    <svg class="icon" aria-hidden="true"><use th:href="${role == 'ADMIN'} ? '#i-check-circle' : '#i-lock'"/></svg>Delete articles
+                                </li>
+                                <li th:class="${role == 'ADMIN'} ? 'access-yes' : 'access-no'">
+                                    <svg class="icon" aria-hidden="true"><use th:href="${role == 'ADMIN'} ? '#i-check-circle' : '#i-lock'"/></svg>View users and roles
+                                </li>
+                            </ul>
+                        </div>
+                    </section>
+
+                    <!-- Team (admin only) -->
+                    <section class="panel" th:if="${role == 'ADMIN'}" aria-labelledby="team-heading">
+                        <div class="panel-head">
+                            <h2 class="panel-title" id="team-heading">
+                                <svg class="icon" aria-hidden="true"><use href="#i-users"/></svg>Team
+                                <span class="chip-count" th:text="${userCount}">0</span>
+                            </h2>
+                            <a class="panel-link" href="/admin/users">
+                                Manage<svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+                            </a>
+                        </div>
+                        <ul class="people">
+                            <li th:each="u : ${users}">
+                                <span class="avatar avatar-sm" aria-hidden="true" th:text="${#strings.toUpperCase(#strings.substring(u.username, 0, 1))}">A</span>
+                                <span class="people-name">
+                                    <span th:text="${u.username}">admin</span>
+                                    <span class="you-tag" th:if="${u.username == username}">You</span>
+                                </span>
+                                <span class="role-badge" th:classappend="'role-' + ${#strings.toLowerCase(u.role)}" th:text="${u.role}">ADMIN</span>
+                            </li>
+                        </ul>
+                    </section>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: overlays}"></div>
 
 </body>
 </html>

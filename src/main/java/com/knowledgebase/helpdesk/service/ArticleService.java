@@ -7,8 +7,10 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 @Service
 public class ArticleService {
@@ -77,6 +79,46 @@ public class ArticleService {
                                 || article.getSolution().toLowerCase().contains(search))
                 .sorted(Comparator.comparing(Article::getId))
                 .toList();
+    }
+
+    /**
+     * Keyword search (same semantics as {@link #search(String)}) narrowed to an
+     * optional status and ordered by the requested sort key:
+     * "updated" (newest first), "title" (A–Z) or anything else (creation order).
+     */
+    public List<Article> search(String keyword, Article.Status status, String sort) {
+
+        Comparator<Article> order = switch (sort == null ? "" : sort) {
+            case "updated" -> Comparator.comparing(Article::getUpdatedAt,
+                    Comparator.nullsLast(Comparator.reverseOrder()));
+            case "title" -> Comparator.comparing(Article::getTitle,
+                    String.CASE_INSENSITIVE_ORDER);
+            default -> Comparator.comparing(Article::getId);
+        };
+
+        return search(keyword)
+                .stream()
+                .filter(article -> status == null || article.getStatus() == status)
+                .sorted(order)
+                .toList();
+    }
+
+    public List<Article> recentlyUpdated(int limit) {
+        return search(null, null, "updated")
+                .stream()
+                .limit(limit)
+                .toList();
+    }
+
+    public List<Article> findByStatus(Article.Status status) {
+        return search(null, status, "updated");
+    }
+
+    public Map<String, Long> countByAuthor() {
+        return articles.values()
+                .stream()
+                .filter(article -> article.getAuthor() != null)
+                .collect(Collectors.groupingBy(Article::getAuthor, Collectors.counting()));
     }
 
     public Article findById(Long id) {

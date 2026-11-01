@@ -1,56 +1,136 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Knowledge Base Helpdesk — Sign In</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/style.css">
-</head>
-<body class="login-page">
+<head th:replace="~{fragments/layout :: head('Sign in')}"></head>
+<body>
 
-<div class="login-card">
+<svg th:replace="~{fragments/layout :: icons}"></svg>
 
-    <div class="login-header">
-        <div class="login-logo" aria-hidden="true">📚</div>
-        <h1>Knowledge Base Helpdesk</h1>
-        <p class="subtitle">Sign in to access the support knowledge portal</p>
-    </div>
+<div class="auth">
 
-    <div class="error" th:if="${error}" th:text="${error}"></div>
-
-    <form method="post" action="/login" autocomplete="on">
-        <label for="username">Username</label>
-        <input type="text"
-               id="username"
-               name="username"
-               placeholder="Enter your username"
-               required
-               autofocus
-               autocomplete="username">
-
-        <label for="password">Password</label>
-        <input type="password"
-               id="password"
-               name="password"
-               placeholder="Enter your password"
-               required
-               autocomplete="current-password">
-
-        <div class="actions" style="margin-top: 24px;">
-            <button type="submit" style="width: 100%;">Sign In</button>
+    <section class="auth-showcase" aria-hidden="true">
+        <div class="brand">
+            <span class="brand-mark"><svg class="icon"><use href="#i-logo"/></svg></span>
+            <span class="brand-text">
+                <span class="brand-name">Knowledge Base</span>
+                <span class="brand-sub">Helpdesk</span>
+            </span>
         </div>
-    </form>
 
-    <div class="demo">
-        <strong>Demo Accounts</strong>
-        <p>admin / admin123 — Administrator</p>
-        <p>support / support123 — Support Staff</p>
-        <p>user / user123 — Regular User</p>
-    </div>
+        <div class="auth-pitch">
+            <h2>Answers your whole team can find in seconds.</h2>
+            <p>A single, searchable home for support solutions — written by your support team, available to everyone.</p>
+
+            <ul class="auth-features">
+                <li>
+                    <span class="feature-icon"><svg class="icon"><use href="#i-search"/></svg></span>
+                    <div><strong>Instant search</strong><span>Match titles, problem descriptions and solution steps.</span></div>
+                </li>
+                <li>
+                    <span class="feature-icon"><svg class="icon"><use href="#i-draft"/></svg></span>
+                    <div><strong>Draft, publish, resolve</strong><span>A simple lifecycle keeps every article's status clear.</span></div>
+                </li>
+                <li>
+                    <span class="feature-icon"><svg class="icon"><use href="#i-shield"/></svg></span>
+                    <div><strong>Role-based access</strong><span>Users read, support staff author, administrators manage.</span></div>
+                </li>
+            </ul>
+        </div>
+
+        <p class="auth-foot">Knowledge Base Helpdesk</p>
+    </section>
+
+    <main class="auth-panel" id="main">
+        <button type="button" class="icon-btn theme-toggle" data-action="toggle-theme" aria-label="Switch to dark theme">
+            <svg class="icon icon-moon" aria-hidden="true"><use href="#i-moon"/></svg>
+            <svg class="icon icon-sun" aria-hidden="true"><use href="#i-sun"/></svg>
+        </button>
+
+        <div class="auth-card">
+            <div class="brand auth-mobile-brand">
+                <span class="brand-mark" aria-hidden="true"><svg class="icon"><use href="#i-logo"/></svg></span>
+                <span class="brand-text">
+                    <span class="brand-name">Knowledge Base</span>
+                    <span class="brand-sub">Helpdesk</span>
+                </span>
+            </div>
+
+            <h1 class="auth-title">Sign in</h1>
+            <p class="auth-subtitle">Welcome back. Enter your account details to continue.</p>
+
+            <div class="alert error" role="alert" th:if="${error}">
+                <svg class="icon" aria-hidden="true"><use href="#i-alert-circle"/></svg>
+                <span th:text="${error}">Invalid username or password</span>
+            </div>
+
+            <form id="login-form" method="post" action="/login" autocomplete="on"
+                  data-validate data-loading-label="Signing in…">
+                <div class="field">
+                    <label class="label" for="username">Username</label>
+                    <div class="input-group">
+                        <svg class="icon icon-sm" aria-hidden="true"><use href="#i-user"/></svg>
+                        <input class="input input-lg" type="text" id="username" name="username"
+                               th:value="${username}"
+                               placeholder="e.g. support" required autofocus
+                               autocomplete="username" autocapitalize="none" spellcheck="false"
+                               data-required-message="Enter your username.">
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label" for="password">Password</label>
+                    <div class="input-group has-addon">
+                        <svg class="icon icon-sm" aria-hidden="true"><use href="#i-lock"/></svg>
+                        <input class="input input-lg" type="password" id="password" name="password"
+                               placeholder="Enter your password" required
+                               autocomplete="current-password"
+                               data-required-message="Enter your password.">
+                        <button type="button" class="icon-btn icon-btn-sm input-addon" data-password-toggle
+                                aria-controls="password" aria-pressed="false" aria-label="Show password">
+                            <svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg btn-block" data-submit>
+                    <svg class="icon spinner" aria-hidden="true"><use href="#i-loader"/></svg>
+                    <span data-label>Sign in</span>
+                </button>
+            </form>
+
+            <section class="demo" aria-labelledby="demo-heading">
+                <div class="demo-head">
+                    <span id="demo-heading">Demo accounts</span>
+                    <span class="muted text-sm">Select to fill in</span>
+                </div>
+                <ul class="demo-list">
+                    <li>
+                        <button type="button" class="demo-account" data-demo-user="admin" data-demo-pass="admin123">
+                            <span class="avatar avatar-sm" aria-hidden="true">A</span>
+                            <span class="demo-account-text"><strong>Administrator</strong><span>admin / admin123</span></span>
+                            <span class="role-badge role-admin">Admin</span>
+                        </button>
+                    </li>
+                    <li>
+                        <button type="button" class="demo-account" data-demo-user="support" data-demo-pass="support123">
+                            <span class="avatar avatar-sm" aria-hidden="true">S</span>
+                            <span class="demo-account-text"><strong>Support Staff</strong><span>support / support123</span></span>
+                            <span class="role-badge role-support">Support</span>
+                        </button>
+                    </li>
+                    <li>
+                        <button type="button" class="demo-account" data-demo-user="user" data-demo-pass="user123">
+                            <span class="avatar avatar-sm" aria-hidden="true">U</span>
+                            <span class="demo-account-text"><strong>Regular User</strong><span>user / user123</span></span>
+                            <span class="role-badge role-user">User</span>
+                        </button>
+                    </li>
+                </ul>
+            </section>
+        </div>
+    </main>
 </div>
+
+<div th:replace="~{fragments/layout :: overlays}"></div>
 
 </body>
 </html>

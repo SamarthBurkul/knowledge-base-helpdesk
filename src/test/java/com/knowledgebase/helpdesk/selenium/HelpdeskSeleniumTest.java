@@ -216,13 +216,70 @@ class HelpdeskSeleniumTest {
                 By.cssSelector("button[type='submit']")
         ).click();
 
+        // The form itself lives under /articles/new, so wait for the
+        // redirect to the saved article's own page (/articles/{id}).
         wait.until(
-                ExpectedConditions.urlContains("/articles")
+                ExpectedConditions.urlMatches(".*/articles/\\d+$")
         );
 
         assertTrue(
                 driver.getPageSource().contains(title)
         );
+    }
+
+    /** Creates a uniquely named article through the UI and returns its page URL. */
+    private String createArticle(String title, String status) {
+        driver.get(baseUrl + "/articles/new");
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("title")))
+                .sendKeys(title);
+        driver.findElement(By.name("description")).sendKeys("Temporary Selenium problem.");
+        driver.findElement(By.name("solution")).sendKeys("Temporary Selenium solution.");
+        new Select(driver.findElement(By.name("status"))).selectByValue(status);
+        driver.findElement(By.cssSelector("form.article-form button[type='submit']")).click();
+        wait.until(ExpectedConditions.urlMatches(".*/articles/\\d+$"));
+        return driver.getCurrentUrl();
+    }
+
+    @Test
+    void supportStaffCanEditArticle() {
+
+        login("support", "support123");
+
+        String title = "Selenium Edit Article " + System.currentTimeMillis();
+        String articleUrl = createArticle(title, "DRAFT");
+
+        driver.findElement(By.partialLinkText("Edit Article")).click();
+        WebElement titleField = wait.until(
+                ExpectedConditions.visibilityOfElementLocated(By.name("title")));
+        titleField.clear();
+        titleField.sendKeys(title + " (updated)");
+        new Select(driver.findElement(By.name("status"))).selectByValue("RESOLVED");
+        driver.findElement(By.cssSelector("form.article-form button[type='submit']")).click();
+
+        wait.until(ExpectedConditions.urlToBe(articleUrl));
+        assertTrue(driver.getPageSource().contains(title + " (updated)"));
+        assertTrue(driver.getPageSource().contains("Resolved"));
+    }
+
+    @Test
+    void adminCanDeleteArticleAfterConfirmation() {
+
+        login("admin", "admin123");
+
+        String title = "Selenium Delete Article " + System.currentTimeMillis();
+        createArticle(title, "DRAFT");
+
+        driver.findElement(By.cssSelector(".article-aside form[data-confirm] button[type='submit']"))
+                .click();
+        WebElement confirm = wait.until(ExpectedConditions.elementToBeClickable(
+                By.cssSelector("#confirm-dialog [data-dialog-confirm]")));
+        confirm.click();
+
+        wait.until(ExpectedConditions.urlMatches(".*/articles$"));
+        assertTrue(driver.getPageSource().contains("Deleted"));
+
+        driver.get(baseUrl + "/articles?keyword=" + title.replace(' ', '+'));
+        assertEquals(0, driver.findElements(By.linkText(title)).size());
     }
 
     @Test

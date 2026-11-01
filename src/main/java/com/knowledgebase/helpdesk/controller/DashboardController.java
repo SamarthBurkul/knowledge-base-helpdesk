@@ -27,17 +27,36 @@ public class DashboardController {
             return "redirect:/login";
         }
 
+        Object role = session.getAttribute("role");
+        boolean canManage = "ADMIN".equals(role) || "SUPPORT".equals(role);
+
+        long published = articleService.countByStatus(Article.Status.PUBLISHED);
+        long resolved = articleService.countByStatus(Article.Status.RESOLVED);
+        // Regular users never see drafts, so they are left out of their figures.
+        long drafts = canManage ? articleService.countByStatus(Article.Status.DRAFT) : 0;
+
         model.addAttribute("username", session.getAttribute("username"));
-        model.addAttribute("role", session.getAttribute("role"));
-        model.addAttribute("articleCount", articleService.count());
-        model.addAttribute("publishedCount",
-                articleService.countByStatus(Article.Status.PUBLISHED));
-        model.addAttribute("draftCount",
-                articleService.countByStatus(Article.Status.DRAFT));
-        model.addAttribute("resolvedCount",
-                articleService.countByStatus(Article.Status.RESOLVED));
-        model.addAttribute("userCount", authService.countUsers());
-        model.addAttribute("users", authService.findAllUsers());
+        model.addAttribute("role", role);
+        model.addAttribute("articleCount", published + resolved + drafts);
+        model.addAttribute("publishedCount", published);
+        model.addAttribute("draftCount", drafts);
+        model.addAttribute("resolvedCount", resolved);
+        model.addAttribute("recentArticles", canManage
+                ? articleService.recentlyUpdated(5)
+                : articleService.search(null, null, "updated").stream()
+                        .filter(a -> a.getStatus() != Article.Status.DRAFT)
+                        .limit(5)
+                        .toList());
+
+        if ("ADMIN".equals(role) || "SUPPORT".equals(role)) {
+            model.addAttribute("draftArticles",
+                    articleService.findByStatus(Article.Status.DRAFT));
+        }
+
+        if ("ADMIN".equals(role)) {
+            model.addAttribute("userCount", authService.countUsers());
+            model.addAttribute("users", authService.findAllUsers());
+        }
 
         return "dashboard";
     }
