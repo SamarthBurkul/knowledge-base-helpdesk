@@ -1,112 +1,266 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Knowledge Articles — Knowledge Base Helpdesk</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/style.css">
-</head>
+<head th:replace="~{fragments/layout :: head('Knowledge base')}"></head>
 <body>
 
-<nav>
-    <div class="brand">
-        <span class="brand-icon" aria-hidden="true">📚</span>
-        Knowledge Base Helpdesk
-    </div>
-    <div class="nav-links">
-        <a href="/dashboard">Dashboard</a>
-        <a href="/articles">Articles</a>
-        <div class="nav-divider" aria-hidden="true"></div>
-        <a href="/logout">Sign Out</a>
-    </div>
-</nav>
+<svg th:replace="~{fragments/layout :: icons}"></svg>
+<a class="skip-link" href="#main">Skip to content</a>
 
-<main class="container">
+<div class="app" th:with="canManage=${role == 'ADMIN' or role == 'SUPPORT'}, isAdmin=${role == 'ADMIN'}">
+    <aside th:replace="~{fragments/layout :: sidebar(${status != '' ? status : 'articles'})}"></aside>
 
-    <div class="page-header">
-        <div>
-            <h1>Knowledge Articles</h1>
-            <p>Search and browse solutions to common problems.</p>
-        </div>
+    <div class="app-main">
+        <header th:replace="~{fragments/layout :: topbar(false)}"></header>
 
-        <a class="button"
-           th:if="${role == 'ADMIN' or role == 'SUPPORT'}"
-           href="/articles/new">
-            + Create Article
-        </a>
-    </div>
+        <main class="page" id="main" tabindex="-1">
 
-    <form class="search" method="get" action="/articles" role="search">
-        <label for="keyword" class="sr-only">Search articles</label>
-        <input type="text"
-               id="keyword"
-               name="keyword"
-               th:value="${keyword}"
-               placeholder="Search by title, problem or solution…">
-
-        <button type="submit">🔍 Search</button>
-    </form>
-
-    <div class="article-list">
-
-        <div class="article"
-             th:each="article : ${articles}">
-
-            <div class="article-content">
-                <h2>
-                    <a th:href="@{/articles/{id}(id=${article.id})}"
-                       th:text="${article.title}">
-                    </a>
-                </h2>
-
-                <p th:text="${article.description}"></p>
-
-                <div class="article-meta">
-                    <span class="status"
-                          th:classappend="'status-' + ${article.status}"
-                          th:text="${article.status}">
-                    </span>
-                    <span th:if="${article.author}" th:text="'By ' + ${article.author}"></span>
+            <div class="page-header">
+                <div>
+                    <nav class="breadcrumbs" aria-label="Breadcrumb">
+                        <ol>
+                            <li><a href="/dashboard">Dashboard</a></li>
+                            <li><span aria-current="page">Knowledge base</span></li>
+                        </ol>
+                    </nav>
+                    <h1 class="page-title">Knowledge base</h1>
+                    <p class="page-subtitle">Search and browse solutions to common problems.</p>
+                </div>
+                <div class="page-actions" th:if="${canManage}">
+                    <a class="btn btn-primary" href="/articles/new">+ Create Article</a>
                 </div>
             </div>
 
-            <div class="article-actions">
+            <section class="panel search-hero" aria-label="Search and filters">
+                <form id="article-search" class="search" method="get" action="/articles" role="search" data-live-search>
+                    <input type="hidden" name="status" th:if="${status != ''}" th:value="${status}">
+                    <input type="hidden" name="view" th:value="${view}">
 
-                <a class="button-small"
-                   th:href="@{/articles/{id}(id=${article.id})}">
-                    View
-                </a>
+                    <div class="search-row">
+                        <div class="input-group">
+                            <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+                            <label for="keyword" class="sr-only">Search articles</label>
+                            <input class="input" type="search" id="keyword" name="keyword"
+                                   th:value="${keyword}"
+                                   placeholder="Search by title, problem or solution…"
+                                   autocomplete="off" enterkeyhint="search"
+                                   data-search-primary aria-describedby="search-hint">
+                            <svg class="icon spinner search-busy" aria-hidden="true" hidden><use href="#i-loader"/></svg>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><span>Search</span>
+                        </button>
+                    </div>
+                    <p id="search-hint" class="sr-only">Results update as you type. Press Enter to search.</p>
 
-                <a class="button-small button-secondary"
-                   th:if="${role == 'ADMIN' or role == 'SUPPORT'}"
-                   th:href="@{/articles/edit/{id}(id=${article.id})}">
-                    Edit
-                </a>
+                    <div class="toolbar">
+                        <nav class="chips" id="filter-chips" aria-label="Filter by status">
+                            <a class="chip" th:href="${links['ALL']}"
+                               th:attr="aria-current=${status == ''} ? 'true' : null">
+                                All <span class="chip-count" th:text="${totalMatches}">0</span>
+                            </a>
+                            <a class="chip" th:each="entry : ${statusCounts}"
+                               th:with="s=${entry.key.name()}"
+                               th:href="${links[s]}"
+                               th:attr="aria-current=${status == s} ? 'true' : null">
+                                <span class="nav-dot" th:classappend="'dot-' + ${#strings.toLowerCase(s)}" aria-hidden="true"></span>
+                                <span th:text="${#strings.capitalize(#strings.toLowerCase(s))}">Status</span>
+                                <span class="chip-count" th:text="${entry.value}">0</span>
+                            </a>
+                        </nav>
 
-                <form th:if="${role == 'ADMIN'}"
-                      th:action="@{/articles/delete/{id}(id=${article.id})}"
-                      method="post"
-                      style="margin:0;">
-                    <button class="danger-small" type="submit"
-                            onclick="return confirm('Are you sure you want to delete this article?')">
-                        Delete
-                    </button>
+                        <div class="toolbar-right">
+                            <div class="sort-control">
+                                <label for="sort">Sort</label>
+                                <select class="select" id="sort" name="sort">
+                                    <option value="" th:selected="${sort == ''}">Date added</option>
+                                    <option value="updated" th:selected="${sort == 'updated'}">Last updated</option>
+                                    <option value="title" th:selected="${sort == 'title'}">Title A–Z</option>
+                                </select>
+                                <noscript><button type="submit" class="btn btn-secondary btn-sm">Apply</button></noscript>
+                            </div>
+                            <nav class="segmented" id="view-toggle" aria-label="Layout">
+                                <a th:href="${links['list']}"
+                                   th:attr="aria-current=${view == 'list'} ? 'true' : null"
+                                   title="List view" aria-label="List view">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-list"/></svg>
+                                </a>
+                                <a th:href="${links['table']}"
+                                   th:attr="aria-current=${view == 'table'} ? 'true' : null"
+                                   title="Table view" aria-label="Table view">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-table"/></svg>
+                                </a>
+                            </nav>
+                        </div>
+                    </div>
                 </form>
+            </section>
 
+            <div id="results-region" class="results-region" aria-live="polite" th:attr="data-keyword=${keyword}">
+
+                <div class="results-head" th:unless="${#lists.isEmpty(articles)}">
+                    <p>
+                        <strong th:text="${#lists.size(articles)}">0</strong>
+                        <span th:text="${#lists.size(articles) == 1} ? 'article' : 'articles'">articles</span>
+                        <th:block th:if="${keyword != ''}">matching “<strong th:text="${keyword}">keyword</strong>”</th:block>
+                        <th:block th:if="${status != ''}">· <span th:text="${#strings.toLowerCase(status)}">status</span></th:block>
+                    </p>
+                    <a th:if="${keyword != '' or status != ''}" class="panel-link"
+                       th:href="${links['clear']}">Clear filters</a>
+                </div>
+
+                <!-- List view -->
+                <section class="panel" th:if="${view == 'list' and not #lists.isEmpty(articles)}" aria-label="Articles">
+                    <ul class="result-list">
+                        <li class="result" th:each="article : ${articles}">
+                            <span class="result-icon" aria-hidden="true"><svg class="icon"><use href="#i-file"/></svg></span>
+                            <div class="result-body">
+                                <h2 class="result-title">
+                                    <a th:href="@{/articles/{id}(id=${article.id})}" th:text="${article.title}">Article title</a>
+                                </h2>
+                                <p class="result-desc" data-highlight th:text="${article.description}">Description</p>
+                                <div class="result-meta">
+                                    <span class="badge" th:classappend="'status-' + ${article.status}"
+                                          th:text="${#strings.capitalize(#strings.toLowerCase(article.status))}">Published</span>
+                                    <span class="meta-item" th:if="${article.author}">
+                                        <svg class="icon" aria-hidden="true"><use href="#i-user"/></svg>
+                                        <span th:text="${article.author}">author</span>
+                                    </span>
+                                    <span class="meta-item">
+                                        <svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>
+                                        <time th:datetime="${article.updatedAt}"
+                                              th:title="${#temporals.format(article.updatedAt, 'd MMM yyyy, HH:mm')}"
+                                              th:text="'Updated ' + ${@relativeTime.format(article.updatedAt)}">Updated</time>
+                                    </span>
+                                    <span class="meta-item mono" th:text="'KB-' + ${#numbers.formatInteger(article.id, 4)}">KB-0001</span>
+                                </div>
+                            </div>
+                            <div class="result-actions" th:if="${canManage}">
+                                <a class="icon-btn icon-btn-sm" th:href="@{/articles/edit/{id}(id=${article.id})}"
+                                   th:attr="aria-label='Edit ' + ${article.title}" title="Edit">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-pencil"/></svg>
+                                </a>
+                                <form th:if="${isAdmin}" method="post"
+                                      th:action="@{/articles/delete/{id}(id=${article.id})}"
+                                      data-confirm-title="Delete article?"
+                                      th:attr="data-confirm='“' + ${article.title} + '” will be permanently removed from the knowledge base. This cannot be undone.'"
+                                      data-confirm-action="Delete article">
+                                    <button type="submit" class="icon-btn icon-btn-sm danger"
+                                            th:attr="aria-label='Delete ' + ${article.title}" title="Delete">
+                                        <svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>
+                                    </button>
+                                </form>
+                            </div>
+                        </li>
+                    </ul>
+                </section>
+
+                <!-- Table view -->
+                <section class="panel table-wrap" th:if="${view == 'table' and not #lists.isEmpty(articles)}" aria-label="Articles">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="td-hide-md">ID</th>
+                                <th scope="col">Article</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Author</th>
+                                <th scope="col">Updated</th>
+                                <th scope="col" class="col-actions"><span class="sr-only">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="article : ${articles}">
+                                <td class="cell-id td-hide-md" th:text="'KB-' + ${#numbers.formatInteger(article.id, 4)}">KB-0001</td>
+                                <td class="td-primary td-fluid">
+                                    <div class="cell-title">
+                                        <a th:href="@{/articles/{id}(id=${article.id})}" th:text="${article.title}">Article title</a>
+                                        <span class="cell-sub" data-highlight th:text="${article.description}">Description</span>
+                                    </div>
+                                </td>
+                                <td data-label="Status">
+                                    <span class="badge" th:classappend="'status-' + ${article.status}"
+                                          th:text="${#strings.capitalize(#strings.toLowerCase(article.status))}">Published</span>
+                                </td>
+                                <td data-label="Author">
+                                    <span class="cell-person" th:if="${article.author}">
+                                        <span class="avatar avatar-sm" aria-hidden="true"
+                                              th:text="${#strings.toUpperCase(#strings.substring(article.author, 0, 1))}">A</span>
+                                        <span th:text="${article.author}">author</span>
+                                    </span>
+                                </td>
+                                <td data-label="Updated" class="nowrap muted">
+                                    <time th:datetime="${article.updatedAt}"
+                                          th:title="${#temporals.format(article.updatedAt, 'd MMM yyyy, HH:mm')}"
+                                          th:text="${@relativeTime.format(article.updatedAt)}">just now</time>
+                                </td>
+                                <td class="td-actions">
+                                    <div class="cell-actions">
+                                        <a class="icon-btn icon-btn-sm" th:href="@{/articles/{id}(id=${article.id})}"
+                                           th:attr="aria-label='View ' + ${article.title}" title="View">
+                                            <svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg>
+                                        </a>
+                                        <a th:if="${canManage}" class="icon-btn icon-btn-sm"
+                                           th:href="@{/articles/edit/{id}(id=${article.id})}"
+                                           th:attr="aria-label='Edit ' + ${article.title}" title="Edit">
+                                            <svg class="icon" aria-hidden="true"><use href="#i-pencil"/></svg>
+                                        </a>
+                                        <form th:if="${isAdmin}" method="post"
+                                              th:action="@{/articles/delete/{id}(id=${article.id})}"
+                                              data-confirm-title="Delete article?"
+                                              th:attr="data-confirm='“' + ${article.title} + '” will be permanently removed from the knowledge base. This cannot be undone.'"
+                                              data-confirm-action="Delete article">
+                                            <button type="submit" class="icon-btn icon-btn-sm danger"
+                                                    th:attr="aria-label='Delete ' + ${article.title}" title="Delete">
+                                                <svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <!-- Empty states -->
+                <section class="panel" th:if="${#lists.isEmpty(articles)}">
+                    <div class="empty-state" th:if="${keyword != ''}">
+                        <span class="empty-icon" aria-hidden="true"><svg class="icon"><use href="#i-search-x"/></svg></span>
+                        <p class="empty-title">No matching articles found</p>
+                        <p class="empty-text">
+                            Nothing matches “<span th:text="${keyword}">keyword</span>”<span th:if="${status != ''}"> with this status</span>.
+                            Try a different search term or check the spelling.
+                        </p>
+                        <div class="empty-actions">
+                            <a class="btn btn-secondary" th:href="${links['clear']}">Clear search</a>
+                            <a class="btn btn-primary" th:if="${canManage}" href="/articles/new">Write this article</a>
+                        </div>
+                    </div>
+
+                    <div class="empty-state" th:if="${keyword == '' and status != ''}">
+                        <span class="empty-icon" aria-hidden="true"><svg class="icon"><use href="#i-inbox"/></svg></span>
+                        <p class="empty-title">No <span th:text="${#strings.toLowerCase(status)}">draft</span> articles</p>
+                        <p class="empty-text">There are no articles with this status right now.</p>
+                        <div class="empty-actions">
+                            <a class="btn btn-secondary" th:href="${links['clear']}">Show all articles</a>
+                        </div>
+                    </div>
+
+                    <div class="empty-state" th:if="${keyword == '' and status == ''}">
+                        <span class="empty-icon" aria-hidden="true"><svg class="icon"><use href="#i-book"/></svg></span>
+                        <p class="empty-title">The knowledge base is empty</p>
+                        <p class="empty-text" th:if="${canManage}">Create the first article to help users solve problems on their own.</p>
+                        <p class="empty-text" th:unless="${canManage}">Articles will appear here once the support team publishes them.</p>
+                        <div class="empty-actions" th:if="${canManage}">
+                            <a class="btn btn-primary" href="/articles/new">Create the first article</a>
+                        </div>
+                    </div>
+                </section>
             </div>
-        </div>
 
-        <div class="empty"
-             th:if="${#lists.isEmpty(articles)}">
-            No matching articles found. Try a different search term.
-        </div>
-
+        </main>
     </div>
+</div>
 
-</main>
+<div th:replace="~{fragments/layout :: overlays}"></div>
 
 </body>
 </html>

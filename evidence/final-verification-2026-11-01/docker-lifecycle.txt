@@ -1,0 +1,38 @@
+### 2026-11-01 13:20:36 +0530 Docker lifecycle verification (Docker engine 29.8.2)
+$ docker build --tag knowledge-base-helpdesk:1.0.2 .   (after mvn clean verify)
+$ docker image ls knowledge-base-helpdesk
+IMAGE                           ID             DISK USAGE   CONTENT SIZE   EXTRA
+knowledge-base-helpdesk:1.0     01f5f8fffe37        533MB          143MB   U    
+knowledge-base-helpdesk:1.0.1   d1c065509679        523MB          140MB        
+knowledge-base-helpdesk:1.0.2   9ebe1c421cb7        523MB          140MB        
+$ docker image inspect knowledge-base-helpdesk:1.0.2 (healthcheck, user, env)
+["CMD-SHELL","bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf \"GET /actuator/health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n\" >&3 && head -n 1 <&3 | grep -q \" 200 \"' || exit 1"]
+user=helpdesk exposed={"8080/tcp":{}} env=["PATH=/opt/java/openjdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","JAVA_HOME=/opt/java/openjdk","LANG=en_US.UTF-8","LANGUAGE=en_US:en","LC_ALL=en_US.UTF-8","JAVA_VERSION=jdk-25.0.5+8","TZ=Asia/Kolkata"]
+$ docker run --detach --name helpdesk-verify --publish 18085:8080 knowledge-base-helpdesk:1.0.2
+70a0fd78368353d6d76695616aa13d96ab400f90e294886fdbca28710570ed1f
+docker health: healthy (after ~22s)
+$ curl http://localhost:18085/actuator/health
+"status":"UP"
+$ docker ps --filter name=helpdesk-verify
+NAMES             IMAGE                           STATUS                    PORTS
+helpdesk-verify   knowledge-base-helpdesk:1.0.2   Up 38 seconds (healthy)   0.0.0.0:18085->8080/tcp, [::]:18085->8080/tcp
+$ docker logs --tail 4 helpdesk-verify
+2026-11-01T13:21:04.353+05:30  INFO 1 --- [knowledge-base-helpdesk] [           main] c.k.h.KnowledgeBaseHelpdeskApplication   : Started KnowledgeBaseHelpdeskApplication in 16.251 seconds (p
+2026-11-01T13:21:16.349+05:30  INFO 1 --- [knowledge-base-helpdesk] [nio-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-11-01T13:21:16.352+05:30  INFO 1 --- [knowledge-base-helpdesk] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-11-01T13:21:16.362+05:30  INFO 1 --- [knowledge-base-helpdesk] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 7 ms
+$ docker exec helpdesk-verify id
+uid=999(helpdesk) gid=999(helpdesk) groups=999(helpdesk)
+$ docker stop helpdesk-verify
+helpdesk-verify
+helpdesk-verify Exited (143) 1 second ago
+$ curl while stopped
+http_code=000 (000 = no response)
+$ docker start helpdesk-verify
+helpdesk-verify
+docker health: healthy (after ~20s)
+$ curl http://localhost:18085/actuator/health
+"status":"UP"
+$ docker rm --force helpdesk-verify
+helpdesk-verify
+$ docker ps -a --filter name=helpdesk-verify   (no rows = removed)

@@ -5,7 +5,7 @@
 
   vars:
     docker_cli: docker
-    app_image: knowledge-base-helpdesk:1.0.1
+    app_image: knowledge-base-helpdesk:1.0.2
     app_container: helpdesk-ansible
     app_port: "18084"
     app_health_url: "http://127.0.0.1:{{ app_port }}/actuator/health"
@@ -33,7 +33,10 @@
           - "{{ docker_cli }}"
           - image
           - inspect
+          - --format
+          - "{{ '{{' }}.Id{{ '}}' }}"
           - "{{ app_image }}"
+      register: app_image_inspect
       changed_when: false
 
     - name: Inspect the existing application container
@@ -55,9 +58,10 @@
     - name: Check the existing container image, state, and port binding
       ansible.builtin.set_fact:
         app_container_details: "{{ app_container_inspect.stdout | from_json | first }}"
+        # Compare the image ID, not just the tag name, so a rebuilt tag is redeployed.
         app_container_matches: >-
           {{
-            (app_container_inspect.stdout | from_json | first).Config.Image == app_image
+            (app_container_inspect.stdout | from_json | first).Image == (app_image_inspect.stdout | trim)
             and (app_container_inspect.stdout | from_json | first).State.Running
             and (
               (
@@ -113,3 +117,7 @@
         that:
           - app_health.json.status == "UP"
         fail_msg: "Application health endpoint did not report UP."
+
+    - name: Report the deployed image and endpoint
+      ansible.builtin.debug:
+        msg: "{{ app_container }} runs {{ app_image }} and reports UP at {{ app_health_url }}"

@@ -132,3 +132,36 @@ The active feature branch `feature/ui-modernization-devops` contains:
 3. Real-time Administrative User & Role Management directory table for users with `ADMIN` role
 4. Container `HEALTHCHECK` directive in `Dockerfile` pointing to Spring Boot Actuator `/actuator/health`
 5. Preservation of all role permissions, form field contracts, and Selenium locators
+
+---
+
+## Where the evidence lives (checked 2026-11-01)
+
+| Item | Local repository | GitHub (`origin`) |
+|---|---|---|
+| `main`, `develop`, `feature/core-helpdesk`, `feature/ui-modernization-devops` | yes | yes |
+| Tag `v1.0.0` (annotated, points to `d0d6c4f`) | yes | yes |
+| Pull requests #1 and #2 (merge commits `d0d6c4f`, `8136cd0`) | yes | yes |
+| `demo/conflict-base`, `demo/conflict-branch-a`, `demo/conflict-branch-b` | yes | **no, never pushed** |
+
+To show the conflict demo on GitHub, push those branches (this only adds branches and rewrites nothing):
+
+```powershell
+git push origin demo/conflict-base demo/conflict-branch-a demo/conflict-branch-b
+```
+
+To replay a fresh conflict live without touching any real branch:
+
+```powershell
+git switch -c demo/live-a demo/conflict-base
+# edit the same line of docs/demo/conflict-demo.md, then:
+git commit -am "Live demo: change A"
+git switch -c demo/live-b demo/conflict-base
+# edit the same line differently, then:
+git commit -am "Live demo: change B"
+git switch demo/live-a
+git merge demo/live-b          # CONFLICT (content) appears
+# fix the file, remove the <<<<<<< ======= >>>>>>> markers, then:
+git add docs/demo/conflict-demo.md
+git commit                     # records the resolution
+```

@@ -1,0 +1,50 @@
+### 2026-11-01 07:54:51 +0000  (run 4: after rollback, expect changed=0)
+$ ansible-playbook -i ansible/inventory.ini ansible/deploy.yml -e docker_cli=/mnt/g/knowledge-base-helpdesk/ansible/docker-desktop.sh
+
+PLAY [Deploy Helpdesk to the local Ubuntu Docker target] ***********************
+
+TASK [Validate deployment inputs] **********************************************
+ok: [localhost] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Verify Docker CLI and daemon are available] ******************************
+ok: [localhost]
+
+TASK [Verify the requested application image is available locally] *************
+ok: [localhost]
+
+TASK [Inspect the existing application container] ******************************
+ok: [localhost]
+
+TASK [Mark a missing container for creation] ***********************************
+skipping: [localhost]
+
+TASK [Check the existing container image, state, and port binding] *************
+ok: [localhost]
+
+TASK [Remove the existing container when its desired state differs] ************
+skipping: [localhost]
+
+TASK [Start the requested application image] ***********************************
+skipping: [localhost]
+
+TASK [Wait for the application health endpoint] ********************************
+ok: [localhost]
+
+TASK [Require an UP health status] *********************************************
+ok: [localhost] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Report the deployed image and endpoint] **********************************
+ok: [localhost] => {
+    "msg": "helpdesk-ansible runs knowledge-base-helpdesk:1.0.2 and reports UP at http://127.0.0.1:18084/actuator/health"
+}
+
+PLAY RECAP *********************************************************************
+localhost                  : ok=8    changed=0    unreachable=0    failed=0    skipped=3    rescued=0    ignored=0   
+
+exit code: 0

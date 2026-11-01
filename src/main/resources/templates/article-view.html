@@ -1,85 +1,140 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title th:text="${article.title} + ' — Knowledge Base Helpdesk'">View Article</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/style.css">
-</head>
+<head th:replace="~{fragments/layout :: head(${article.title})}"></head>
 <body>
 
-<nav>
-    <div class="brand">
-        <span class="brand-icon" aria-hidden="true">📚</span>
-        Knowledge Base Helpdesk
+<svg th:replace="~{fragments/layout :: icons}"></svg>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<div class="app" th:with="canManage=${role == 'ADMIN' or role == 'SUPPORT'}, isAdmin=${role == 'ADMIN'}">
+    <aside th:replace="~{fragments/layout :: sidebar('articles')}"></aside>
+
+    <div class="app-main">
+        <header th:replace="~{fragments/layout :: topbar(true)}"></header>
+
+        <main class="page" id="main" tabindex="-1">
+
+            <nav class="breadcrumbs" aria-label="Breadcrumb">
+                <ol>
+                    <li><a href="/dashboard">Dashboard</a></li>
+                    <li><a href="/articles">Knowledge base</a></li>
+                    <li><span aria-current="page" th:text="${article.title}">Article</span></li>
+                </ol>
+            </nav>
+
+            <div class="article-layout">
+                <article class="article-detail" aria-labelledby="article-title">
+                    <header class="article-head">
+                        <div class="article-badges">
+                            <span class="badge" th:classappend="'status-' + ${article.status}"
+                                  th:text="${#strings.capitalize(#strings.toLowerCase(article.status))}">Published</span>
+                            <span class="role-badge mono" th:text="'KB-' + ${#numbers.formatInteger(article.id, 4)}">KB-0001</span>
+                        </div>
+                        <h1 class="article-title" id="article-title" th:text="${article.title}">Article title</h1>
+                        <div class="article-byline">
+                            <span class="cell-person" th:if="${article.author}">
+                                <span class="avatar avatar-sm" aria-hidden="true"
+                                      th:text="${#strings.toUpperCase(#strings.substring(article.author, 0, 1))}">A</span>
+                                <span th:text="${article.author}">author</span>
+                            </span>
+                            <span class="meta-item">
+                                <svg class="icon icon-xs" aria-hidden="true"><use href="#i-clock"/></svg>
+                                <time th:datetime="${article.updatedAt}"
+                                      th:title="${#temporals.format(article.updatedAt, 'd MMM yyyy, HH:mm')}"
+                                      th:text="'Updated ' + ${@relativeTime.format(article.updatedAt)}">Updated</time>
+                            </span>
+                        </div>
+                    </header>
+
+                    <div class="panel">
+                        <section class="article-section" aria-labelledby="problem">
+                            <h2 class="section-heading" id="problem">
+                                <svg class="icon" aria-hidden="true"><use href="#i-help"/></svg>Problem description
+                            </h2>
+                            <p class="prose" th:text="${article.description}">Description</p>
+                        </section>
+                        <section class="article-section" aria-labelledby="solution">
+                            <h2 class="section-heading" id="solution">
+                                <svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg>Solution
+                            </h2>
+                            <div class="prose prose-solution" th:text="${article.solution}">Solution</div>
+                        </section>
+                    </div>
+                </article>
+
+                <aside class="article-aside" aria-label="Article details and actions">
+                    <section class="panel" th:if="${canManage}" aria-label="Actions">
+                        <div class="aside-actions">
+                            <a class="btn btn-primary" th:href="@{/articles/edit/{id}(id=${article.id})}">
+                                <svg class="icon" aria-hidden="true"><use href="#i-pencil"/></svg>Edit Article
+                            </a>
+                            <form th:if="${isAdmin}" method="post"
+                                  th:action="@{/articles/delete/{id}(id=${article.id})}"
+                                  data-confirm-title="Delete article?"
+                                  th:attr="data-confirm='“' + ${article.title} + '” will be permanently removed from the knowledge base. This cannot be undone.'"
+                                  data-confirm-action="Delete article">
+                                <button type="submit" class="btn btn-danger-ghost btn-block">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-trash"/></svg>Delete article
+                                </button>
+                            </form>
+                        </div>
+                    </section>
+
+                    <section class="panel" aria-labelledby="details-heading">
+                        <div class="panel-head">
+                            <h2 class="panel-title" id="details-heading">Details</h2>
+                        </div>
+                        <dl class="details">
+                            <div>
+                                <dt>Status</dt>
+                                <dd><span class="badge" th:classappend="'status-' + ${article.status}"
+                                          th:text="${#strings.capitalize(#strings.toLowerCase(article.status))}">Published</span></dd>
+                            </div>
+                            <div>
+                                <dt>Author</dt>
+                                <dd th:text="${article.author != null ? article.author : '—'}">author</dd>
+                            </div>
+                            <div>
+                                <dt>Last updated</dt>
+                                <dd th:text="${article.updatedAt != null ? #temporals.format(article.updatedAt, 'd MMM yyyy, HH:mm') : '—'}">1 Jan 2026</dd>
+                            </div>
+                            <div>
+                                <dt>Article ID</dt>
+                                <dd class="mono" th:text="'KB-' + ${#numbers.formatInteger(article.id, 4)}">KB-0001</dd>
+                            </div>
+                        </dl>
+                    </section>
+
+                    <section class="panel toc-panel" aria-labelledby="toc-heading">
+                        <div class="panel-head">
+                            <h2 class="panel-title" id="toc-heading">On this page</h2>
+                        </div>
+                        <ul class="toc">
+                            <li><a href="#problem"><svg class="icon" aria-hidden="true"><use href="#i-help"/></svg>Problem description</a></li>
+                            <li><a href="#solution"><svg class="icon" aria-hidden="true"><use href="#i-bulb"/></svg>Solution</a></li>
+                        </ul>
+                    </section>
+
+                    <section class="panel" aria-label="Share">
+                        <div class="aside-actions">
+                            <button type="button" class="btn btn-secondary btn-sm" data-action="copy-link">
+                                <svg class="icon" aria-hidden="true"><use href="#i-link"/></svg>Copy link
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-sm" data-action="print">
+                                <svg class="icon" aria-hidden="true"><use href="#i-printer"/></svg>Print article
+                            </button>
+                            <a class="btn btn-ghost btn-sm" href="/articles">
+                                <svg class="icon" aria-hidden="true"><use href="#i-arrow-left"/></svg>Back to Articles
+                            </a>
+                        </div>
+                    </section>
+                </aside>
+            </div>
+        </main>
     </div>
-    <div class="nav-links">
-        <a href="/dashboard">Dashboard</a>
-        <a href="/articles">Articles</a>
-        <div class="nav-divider" aria-hidden="true"></div>
-        <a href="/logout">Sign Out</a>
-    </div>
-</nav>
+</div>
 
-<main class="container">
-
-    <div class="breadcrumb" aria-label="Breadcrumb">
-        <a href="/dashboard">Dashboard</a>
-        <span class="breadcrumb-sep" aria-hidden="true">›</span>
-        <a href="/articles">Articles</a>
-        <span class="breadcrumb-sep" aria-hidden="true">›</span>
-        <span th:text="${article.title}">Article Title</span>
-    </div>
-
-    <article class="article-detail">
-
-        <span class="status"
-              th:classappend="'status-' + ${article.status}"
-              th:text="${article.status}">
-        </span>
-
-        <h1 th:text="${article.title}">Article Title</h1>
-
-        <h3>Problem Description</h3>
-        <p th:text="${article.description}"></p>
-
-        <h3>Solution</h3>
-        <div class="solution" th:text="${article.solution}"></div>
-
-        <hr>
-
-        <div class="article-meta-detail">
-            <p>
-                <strong>Author:</strong>
-                <span th:text="${article.author}"></span>
-            </p>
-
-            <p>
-                <strong>Last Updated:</strong>
-                <span th:text="${#temporals.format(article.updatedAt, 'dd MMM yyyy, HH:mm')}"></span>
-            </p>
-        </div>
-
-        <div class="actions">
-
-            <a class="button button-secondary"
-               href="/articles">
-                ← Back to Articles
-            </a>
-
-            <a class="button"
-               th:if="${role == 'ADMIN' or role == 'SUPPORT'}"
-               th:href="@{/articles/edit/{id}(id=${article.id})}">
-                ✏️ Edit Article
-            </a>
-        </div>
-
-    </article>
-
-</main>
+<div th:replace="~{fragments/layout :: overlays}"></div>
 
 </body>
 </html>

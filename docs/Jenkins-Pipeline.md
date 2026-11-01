@@ -1,113 +1,97 @@
-# Jenkins CI/CD Pipeline & Docker Hub Publication Guide
+# Jenkins CI Pipeline and Docker Hub Publishing
 
-## 1. Overview and Environment
+## 1. Environment (inspected 2026-11-01)
 
-The Jenkins pipeline is defined in the root [`Jenkinsfile`](../Jenkinsfile). It is built for a Windows Jenkins installation (Jenkins 2.580.1 running at `http://localhost:8081/`) executing against Docker Desktop and Temurin Java 25.
+| Item | Value |
+|---|---|
+| Jenkins | 2.580.1, Windows service running as `LocalSystem`, `http://localhost:8081/` |
+| Security | Jenkins user database, "logged-in users can do anything"; anonymous access returns HTTP 403 |
+| Jenkins user | `Samarth03` |
+| Tools configured in Jenkins | Maven `Maven3.10`, JDK `JDK25` (both referenced by the `Jenkinsfile`) |
+| Machine `PATH` (seen by the service) | Java 25, Maven 3.10.0, Git, Docker CLI |
+| Plugins present | Pipeline, Git, GitHub, JUnit, Credentials Binding, Timestamper, Docker Pipeline, Pipeline Graph View |
+| Job `Knowledge-Base-Helpdesk-CI` | **Exists but has no pipeline definition** (neither inline script nor SCM) and **has never been built** |
+| Credentials | **None stored.** There is no `dockerhub` credential |
 
-### Pipeline Prerequisites on Windows
-- Jenkins running as a Windows service or local agent
-- Installed tools on the Jenkins service account's `PATH`:
-  - `mvn` (Maven 3.10.0+)
-  - `java` (Java 25)
-  - `docker` (Docker Engine CLI connected to Docker Desktop)
-  - `powershell` (PowerShell 5.1 / 7+)
-- Jenkins Plugins:
-  - Pipeline plugin
-  - JUnit plugin
-  - Credentials Binding plugin
+Because the job is empty and Jenkins requires a login, no Jenkins build has been run
+and none is claimed. Everything the pipeline does was verified outside Jenkins with the
+same commands (see [`evidence/final-verification-2026-11-01/`](../evidence/final-verification-2026-11-01/README.md)).
 
----
+## 2. Pipeline stages ([`Jenkinsfile`](../Jenkinsfile))
 
-## 2. Pipeline Execution Stages
+| Stage | Command | Stops the pipeline when |
+|---|---|---|
+| Checkout | `checkout scm` | repository cannot be cloned |
+| Tool check | `java -version`, `mvn -v`, `docker version` | a tool is missing or Docker is not reachable by the service account |
+| Compile | `mvn -B clean compile` | compilation fails |
+| Unit and integration tests | `mvn -B test` (19 tests; Selenium skipped here) | any test fails |
+| Package JAR | `mvn -B -DskipTests package`, JAR archived and fingerprinted | packaging fails |
+| Start application for Selenium | copies the JAR to `ci-app\app-under-test.jar`, starts it on 18082, waits for `UP` | app does not become healthy |
+| Selenium tests | starts `selenium/standalone-chrome` on 24444, runs the 6 journeys | any journey fails |
+| Docker image build | `docker build --tag knowledge-base-helpdesk:ci-<BUILD_NUMBER> .` | build fails |
+| Temporary-container deployment | runs the image on 18083 | container cannot start |
+| Deployment health check | waits for HTTP `UP` **and** Docker health `healthy` | not healthy within ~90 s |
+| Docker Hub publish (opt-in) | tag and push `<repo>:<BUILD_NUMBER>` | login or push fails |
 
-| Stage | Action | Success Criteria | Cleanup Behavior |
-|---|---|---|---|
-| **Checkout** | Clones/checks out the git revision | Code available in `$WORKSPACE` | N/A |
-| **Maven build** | `mvn -B -DskipTests package` | Artifact `target/knowledge-base-helpdesk-1.0.0.jar` generated | Handled in post |
-| **Unit tests** | `mvn -B -Dtest=ArticleServiceTest test` | 3/3 tests pass (0 failures) | XML archived in JUnit |
-| **Start application for Selenium** | Starts app on port 18082 in background; records PID | `http://localhost:18082/actuator/health` returns `UP` | Killed in `post { always }` |
-| **Selenium tests** | Starts `selenium/standalone-chrome` container on port 24444; runs 4 browser journeys | 4/4 UI journeys pass; screenshots captured | Selenium container removed in `post` |
-| **Full test suite** | `mvn -B -Dselenium.enabled=true test` | All unit & Selenium tests pass | Test reports archived |
-| **Docker image build** | `docker build --tag "%APP_IMAGE%" .` | Image built with tag `knowledge-base-helpdesk:${BUILD_NUMBER}` | Image retained locally |
-| **Temporary-container deployment** | Runs temporary container on port 18083 | Container starts in detached mode | Container removed in `post` |
-| **Health check** | Polls `http://localhost:18083/actuator/health` with retry loop | Returns HTTP 200 with `{"status":"UP"}` | Diagnostic logs dumped on failure |
-| **Docker Hub publish (opt-in)** | Conditional stage: checks `params.PUBLISH_TO_DOCKERHUB` | Logs in using `dockerhub` credential, tags and pushes image | `docker logout` in finally block |
+Failed tests stop the pipeline: the `bat` step exits non-zero, the stage fails, and the
+image build and deployment stages never run. `post { always }` stops the test JVM,
+removes the CI containers, publishes `target/surefire-reports/TEST-*.xml` with the JUnit
+plugin, and archives screenshots (`test-output/`) and logs.
 
----
+Parameters: `RUN_SELENIUM` (default on), `PUBLISH_TO_DOCKERHUB` (default off),
+`DOCKERHUB_REPOSITORY`.
 
-## 3. Docker Hub Publishing Configuration (Manual Setup Required)
+## 3. One-time setup of the existing job (needs your Jenkins login)
 
-> [!IMPORTANT]
-> **Docker Hub Publishing is strictly opt-in and disabled by default (`PUBLISH_TO_DOCKERHUB = false`).**
-> Because you forgot your previous Docker Hub access token, you must generate a new Personal Access Token (PAT) from Docker Hub and configure it in Jenkins following the steps below.
+The pipeline builds what is on GitHub, so push the branch you want to build first.
 
-### Step 3.1: Generate a Docker Hub Personal Access Token (PAT)
-1. Sign in to your Docker Hub account at [https://hub.docker.com](https://hub.docker.com).
-2. Click on your profile username in the upper-right corner and select **Account Settings**.
-3. In the left navigation menu, navigate to **Security** > **Personal access tokens**.
-4. Click **New Access Token**.
-5. Fill in the details:
-   - **Access Token Description**: `jenkins-ci-knowledge-base-helpdesk`
-   - **Access permissions**: Select **Read & Write** (or Read, Write, Delete if managing tags).
-6. Click **Generate**.
-7. **Copy the generated token immediately**. Docker Hub will never show it again. Store it securely in your password manager.
+1. Open `http://localhost:8081/` and sign in as `Samarth03`.
+2. Open **Knowledge-Base-Helpdesk-CI** → **Configure**. Do not create a new job.
+3. Under **Pipeline**, set:
+   - **Definition**: `Pipeline script from SCM`
+   - **SCM**: `Git`
+   - **Repository URL**: `https://github.com/SamarthBurkul/knowledge-base-helpdesk.git`
+     (public repository, no credentials needed)
+   - **Branch Specifier**: `*/main` (or `*/feature/enterprise-ui-redesign` to build the branch before merging)
+   - **Script Path**: `Jenkinsfile`
+4. **Save**, then **Build with Parameters** → leave `PUBLISH_TO_DOCKERHUB` unticked → **Build**.
+5. Open the build → **Console Output**. Success ends with `Finished: SUCCESS`.
+   The **Tests** tab shows the JUnit results.
 
-### Step 3.2: Configure the Credential in Jenkins
-1. Open Jenkins in your browser at `http://localhost:8081/`.
-2. Sign in with your Jenkins administrative account.
-3. In the left dashboard, click **Manage Jenkins** > **Credentials**.
-4. Under **Stores scoped to Jenkins**, click on **System**, then click **Global credentials (unrestricted)**.
-5. In the left sidebar, click **Add Credentials**.
-6. Fill in the form fields:
-   - **Kind**: Select `Username with password`.
-   - **Scope**: `Global (Jenkins, nodes, items, all child items, etc.)`.
-   - **Username**: Your exact Docker Hub username (e.g., `samarthburkul`).
-   - **Password**: Paste the **Personal Access Token** copied in Step 3.1.
-   - **ID**: `dockerhub` *(must be exact lowercase: `dockerhub`, as referenced in `Jenkinsfile`)*.
-   - **Description**: `Docker Hub Service Account for Knowledge Base Helpdesk CI`.
-7. Click **Create**.
+The same job definition is in [`jenkins/Knowledge-Base-Helpdesk-CI.config.xml`](../jenkins/Knowledge-Base-Helpdesk-CI.config.xml).
+With an API token (user menu → **Security** → **API Token**) it can be applied without the UI:
 
----
+```powershell
+curl.exe -u Samarth03:<API_TOKEN> -X POST -H "Content-Type: application/xml" `
+  --data-binary "@jenkins/Knowledge-Base-Helpdesk-CI.config.xml" `
+  http://localhost:8081/job/Knowledge-Base-Helpdesk-CI/config.xml
+```
 
-## 4. Running the Job with or without Publishing
+### If the first build fails
 
-### Scenario A: Standard CI Validation (Publishing Disabled — Default)
-1. In Jenkins, open the job **`Knowledge-Base-Helpdesk-CI`**.
-2. Click **Build with Parameters**.
-3. Leave **PUBLISH_TO_DOCKERHUB** unchecked (`false`).
-4. Leave **DOCKERHUB_REPOSITORY** empty.
-5. Click **Build**.
-6. The pipeline will build, run unit tests, run Selenium tests, build the local Docker image, verify the container health, and skip the publishing stage.
+| Console message | Cause and fix |
+|---|---|
+| `Tool type "maven" does not have an install of "Maven3.10"` | Manage Jenkins → Tools: keep the names `Maven3.10` and `JDK25` |
+| `docker: error during connect` / `Access is denied` in **Tool check** | The `LocalSystem` service cannot reach Docker Desktop. In `services.msc`, set the Jenkins service **Log On** to your Windows account (member of `docker-users`), restart Jenkins |
+| Selenium stage times out | Docker Desktop not running, or port 24444 in use: `docker ps` |
+| Health check fails | Port 18083 in use, or see `deploy-container.log` in the build artifacts |
 
-### Scenario B: Release Publication to Docker Hub
-1. Open **`Knowledge-Base-Helpdesk-CI`** in Jenkins.
-2. Click **Build with Parameters**.
-3. Check the box **PUBLISH_TO_DOCKERHUB** (`true`).
-4. Enter your lowercase repository name in **DOCKERHUB_REPOSITORY** (e.g., `samarthburkul/knowledge-base-helpdesk`).
-5. Click **Build**.
-6. Upon passing all unit, Selenium, and container health checks, the image will be tagged and pushed:
-   - Pushed tag format: `<DOCKERHUB_REPOSITORY>:<BUILD_NUMBER>` (e.g., `samarthburkul/knowledge-base-helpdesk:2`).
-   - **Note**: The pipeline never pushes `latest` directly, preserving strict build provenance.
+The first build downloads Maven dependencies for the service account, so it is slower.
 
----
+## 4. Docker Hub publishing (optional)
 
-## 5. Verifying the Published Image on Docker Hub
+Local images are enough for the assignment; publishing is off by default. To enable it:
 
-After a successful publication build:
-1. Log in to [https://hub.docker.com](https://hub.docker.com).
-2. Navigate to **Repositories** > `<your-username>/knowledge-base-helpdesk`.
-3. Under the **Tags** tab, verify that tag `<BUILD_NUMBER>` appears with the recent timestamp and matching digest.
-4. Locally verify pulling the published image:
-   ```powershell
-   docker pull <your-username>/knowledge-base-helpdesk:<BUILD_NUMBER>
-   ```
+1. Docker Hub → **Account settings** → **Personal access tokens** → **Generate new token**
+   (description `jenkins-knowledge-base-helpdesk`, permission **Read & Write**). Copy it once.
+2. Jenkins → **Manage Jenkins** → **Credentials** → **System** → **Global credentials** → **Add Credentials**:
+   - Kind: `Username with password`
+   - Username: your Docker Hub username
+   - Password: the access token
+   - ID: `dockerhub` (exactly, it is referenced by the `Jenkinsfile`)
+3. **Build with Parameters**: tick `PUBLISH_TO_DOCKERHUB`, set `DOCKERHUB_REPOSITORY` to
+   `<your-username>/knowledge-base-helpdesk`.
 
----
-
-## 6. Post-Build Artifacts and Diagnostics
-Regardless of build success or failure, the pipeline always:
-- Collects JUnit XML reports from `target/surefire-reports/TEST-*.xml`
-- Archives test failure screenshots from `test-output/`
-- Archives application logs: `app.log` and `app-error.log`
-- Guarantees termination of background JVM processes via `app.pid`
-- Force-removes temporary CI containers (`selenium-chrome-ci-${BUILD_NUMBER}` and `helpdesk-app-ci-${BUILD_NUMBER}`)
+The token is read through `withCredentials` and piped to `docker login --password-stdin`,
+so it is masked in the console and never written to the repository.
+The pushed tag is `<repository>:<BUILD_NUMBER>`; `latest` is never pushed.

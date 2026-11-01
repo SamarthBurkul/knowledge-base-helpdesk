@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Users & roles')}"></head>
+<body>
+
+<svg th:replace="~{fragments/layout :: icons}"></svg>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<div class="app">
+    <aside th:replace="~{fragments/layout :: sidebar('users')}"></aside>
+
+    <div class="app-main">
+        <header th:replace="~{fragments/layout :: topbar(true)}"></header>
+
+        <main class="page" id="main" tabindex="-1">
+
+            <div class="page-header">
+                <div>
+                    <nav class="breadcrumbs" aria-label="Breadcrumb">
+                        <ol>
+                            <li><a href="/dashboard">Dashboard</a></li>
+                            <li><span>Administration</span></li>
+                            <li><span aria-current="page">Users &amp; roles</span></li>
+                        </ol>
+                    </nav>
+                    <h1 class="page-title">Users &amp; roles</h1>
+                    <p class="page-subtitle">Accounts that can sign in to the helpdesk and what each role is allowed to do.</p>
+                </div>
+            </div>
+
+            <!-- Role overview: counts come from the account directory -->
+            <div class="role-cards">
+                <section class="panel role-card" aria-labelledby="role-admin">
+                    <div class="role-card-head">
+                        <span class="role-badge role-admin" id="role-admin">Admin</span>
+                        <span class="role-card-count" th:text="${#lists.size(users.?[role == 'ADMIN'])}">0</span>
+                    </div>
+                    <p>Full access: create, edit and delete articles, and view users and roles.</p>
+                </section>
+                <section class="panel role-card" aria-labelledby="role-support">
+                    <div class="role-card-head">
+                        <span class="role-badge role-support" id="role-support">Support</span>
+                        <span class="role-card-count" th:text="${#lists.size(users.?[role == 'SUPPORT'])}">0</span>
+                    </div>
+                    <p>Authoring access: create and edit articles and change their status.</p>
+                </section>
+                <section class="panel role-card" aria-labelledby="role-user">
+                    <div class="role-card-head">
+                        <span class="role-badge role-user" id="role-user">User</span>
+                        <span class="role-card-count" th:text="${#lists.size(users.?[role == 'USER'])}">0</span>
+                    </div>
+                    <p>Read-only access: search and read knowledge articles.</p>
+                </section>
+            </div>
+
+            <section class="panel table-wrap" aria-labelledby="accounts-heading">
+                <div class="panel-head">
+                    <div>
+                        <h2 class="panel-title" id="accounts-heading">
+                            <svg class="icon" aria-hidden="true"><use href="#i-users"/></svg>Accounts
+                            <span class="chip-count" th:text="${#lists.size(users)}">0</span>
+                        </h2>
+                    </div>
+                </div>
+
+                <table class="data-table" th:unless="${#lists.isEmpty(users)}">
+                    <thead>
+                        <tr>
+                            <th scope="col">User</th>
+                            <th scope="col">Role</th>
+                            <th scope="col">Permissions</th>
+                            <th scope="col">Articles authored</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="u : ${users}">
+                            <td class="td-primary">
+                                <span class="cell-person">
+                                    <span class="avatar" aria-hidden="true"
+                                          th:text="${#strings.toUpperCase(#strings.substring(u.username, 0, 1))}">A</span>
+                                    <strong th:text="${u.username}">admin</strong>
+                                    <span class="you-tag" th:if="${u.username == currentUser}">You</span>
+                                </span>
+                            </td>
+                            <td data-label="Role">
+                                <span class="role-badge" th:classappend="'role-' + ${#strings.toLowerCase(u.role)}" th:text="${u.role}">ADMIN</span>
+                            </td>
+                            <td data-label="Permissions">
+                                <div class="perm-list">
+                                    <span class="perm">Read</span>
+                                    <span class="perm" th:if="${u.role == 'ADMIN' or u.role == 'SUPPORT'}">Create</span>
+                                    <span class="perm" th:if="${u.role == 'ADMIN' or u.role == 'SUPPORT'}">Edit</span>
+                                    <span class="perm" th:if="${u.role == 'ADMIN'}">Delete</span>
+                                    <span class="perm" th:if="${u.role == 'ADMIN'}">Users</span>
+                                </div>
+                            </td>
+                            <td data-label="Articles authored">
+                                <span th:text="${authoredCounts.get(u.username) != null ? authoredCounts.get(u.username) : 0}"
+                                      th:classappend="${authoredCounts.get(u.username) == null} ? 'muted'">0</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="empty-state" th:if="${#lists.isEmpty(users)}">
+                    <span class="empty-icon" aria-hidden="true"><svg class="icon"><use href="#i-users"/></svg></span>
+                    <p class="empty-title">No accounts found</p>
+                </div>
+            </section>
+
+            <div class="callout callout-spaced">
+                <svg class="icon" aria-hidden="true"><use href="#i-info"/></svg>
+                <p>Accounts are provisioned by the application configuration. Adding, editing or removing accounts and changing roles is not yet supported from the web interface.</p>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: overlays}"></div>
+
+</body>
+</html>
