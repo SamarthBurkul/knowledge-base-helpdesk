@@ -84,11 +84,37 @@ pipeline {
                     )
                 '''
                 // A killed build skips `post`; free the fixed ports it left behind.
-                bat '''
-                    for /f %%c in ('docker ps --all --quiet --filter "label=%CI_CONTAINER_LABEL%"') do (
-                        echo Removing leftover CI container %%c
-                        docker rm --force %%c
-                    )
+                powershell '''
+                    # 'Continue' so docker's stderr cannot end the script before the
+                    # exit-code checks below report the failure.
+                    $ErrorActionPreference = 'Continue'
+
+                    $label = $env:CI_CONTAINER_LABEL
+
+                    if ([string]::IsNullOrWhiteSpace($label)) {
+                        throw "CI_CONTAINER_LABEL is not configured."
+                    }
+
+                    $containers = @(docker ps --all --quiet --filter "label=$label")
+
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "Could not inspect leftover Jenkins containers."
+                    }
+
+                    foreach ($container in $containers) {
+                        $container = "$container".Trim()
+
+                        if (-not [string]::IsNullOrWhiteSpace($container)) {
+                            Write-Output "Removing leftover CI container $container"
+                            docker rm --force $container
+
+                            if ($LASTEXITCODE -ne 0) {
+                                throw "Could not remove CI container $container"
+                            }
+                        }
+                    }
+
+                    Write-Output "CI container cleanup completed."
                 '''
             }
         }
