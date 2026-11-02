@@ -281,16 +281,15 @@ Ports used on this machine: 8082 demo container, 18084 Ansible-managed container
 ## Jenkins CI/CD
 
 The [`Jenkinsfile`](Jenkinsfile) stages: Checkout → Tool check → Compile → Unit and
-integration tests → Package JAR → Start application → Selenium tests (Chrome container)
-→ Docker image build (`knowledge-base-helpdesk:ci-<build>`) → Temporary-container
+integration tests → Package JAR → Docker image build (`knowledge-base-helpdesk:ci-<build>`)
+→ Temporary test container → Selenium tests (Chrome container) → Temporary-container
 deployment → Deployment health gate (HTTP `UP` **and** Docker `healthy`) → optional
-Docker Hub publish. A failing test fails its stage, so no image is built or deployed.
+Docker Hub publish. A failing test fails its stage, so no image is deployed or published.
 JUnit reports, the JAR, Selenium screenshots and logs are published on every run.
 
-**Status:** the existing job `Knowledge-Base-Helpdesk-CI` on `http://localhost:8081/`
-exists but has **no pipeline definition and has never run**. It must be pointed at this
-repository once, while signed in. Steps: [docs/Jenkins-Pipeline.md](docs/Jenkins-Pipeline.md).
-No Jenkins build result is claimed in this repository.
+**Status:** the job `Knowledge-Base-Helpdesk-CI` on `http://localhost:8081/` builds this
+repository from `*/main`. No Jenkins build with Selenium enabled has passed yet.
+Steps: [docs/Jenkins-Pipeline.md](docs/Jenkins-Pipeline.md).
 
 ---
 
@@ -343,7 +342,7 @@ Details: [docs/Deployment.md](docs/Deployment.md).
 | 6 Selenium journeys (Chrome in Docker) | ✅ Pass (executed, not skipped) | `surefire-reports/`, `selenium-screenshots/` |
 | Docker image, health check, run/stop/start/remove | ✅ Verified | `docker-lifecycle.txt` |
 | Ansible deploy, idempotency, rollback (local target) | ✅ Verified | `ansible-*.txt` |
-| Jenkins pipeline run | ⏳ Needs one-time job setup while signed in | [docs/Jenkins-Pipeline.md](docs/Jenkins-Pipeline.md) |
+| Jenkins pipeline run | ⏳ Selenium build pending; earlier build passed with Selenium off | [docs/Jenkins-Pipeline.md](docs/Jenkins-Pipeline.md) |
 | Docker Hub publish | ⏳ Optional; no `dockerhub` credential exists in Jenkins | [docs/Jenkins-Pipeline.md](docs/Jenkins-Pipeline.md) |
 | Remote server provisioning | ❌ Not configured | Inventory targets localhost only |
 
