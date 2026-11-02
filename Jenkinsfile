@@ -286,8 +286,14 @@ pipeline {
                     )]) {
                         try {
                             powershell '''
-                                $env:DOCKERHUB_TOKEN | docker login `
-                                    --username $env:DOCKERHUB_USER `
+                                # Jenkins runs this with a UTF-8 encoding that has a BOM, and
+                                # Windows PowerShell would put those bytes in front of the token.
+                                $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+                                [Console]::InputEncoding = $utf8NoBom
+                                $OutputEncoding = $utf8NoBom
+                                $dockerHubUser = $env:DOCKERHUB_USER.Trim()
+                                $env:DOCKERHUB_TOKEN.Trim() | docker login `
+                                    --username $dockerHubUser `
                                     --password-stdin
                                 if ($LASTEXITCODE -ne 0) {
                                     throw 'Docker Hub login failed.'
