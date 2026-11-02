@@ -1,11 +1,14 @@
 // Knowledge Base Helpdesk - CI pipeline (Windows Jenkins agent with Docker Desktop).
 //
 // Flow: checkout -> compile -> unit + integration tests -> package JAR
-//       -> start app -> Selenium (Chrome in Docker) -> versioned Docker image
-//       -> temporary container deployment -> health gate -> (optional) Docker Hub.
+//       -> versioned Docker image -> temporary test container -> health gate
+//       -> Selenium (Chrome in Docker) -> temporary container deployment
+//       -> health gate -> (optional) Docker Hub.
 //
-// Any failing test fails its `bat` step, which stops the pipeline before the
-// Docker image is built or deployed. JUnit reports are published in `post`.
+// The application under test runs in a container, so no step has to keep a
+// background process alive on the agent. Any failing test fails its `bat` step,
+// which stops the pipeline before the deployment stages. Every container is
+// removed in `post`, and JUnit reports are published there too.
 pipeline {
     agent any
 
@@ -35,6 +38,7 @@ pipeline {
 
     options {
         skipDefaultCheckout(true)
+        // The host ports below are fixed, so two builds cannot run at once.
         disableConcurrentBuilds()
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '20'))
@@ -46,12 +50,17 @@ pipeline {
         APP_BASE_URL = 'http://localhost:18082'
         DEPLOY_PORT = '18083'
         APP_IMAGE = "knowledge-base-helpdesk:ci-${BUILD_NUMBER}"
-        APP_CONTAINER = "helpdesk-app-ci-${BUILD_NUMBER}"
+        TEST_APP_CONTAINER = "helpdesk-app-under-test-${BUILD_NUMBER}"
+        DEPLOY_CONTAINER = "helpdesk-deploy-ci-${BUILD_NUMBER}"
         SELENIUM_IMAGE = 'selenium/standalone-chrome:latest'
         SELENIUM_CONTAINER = "selenium-chrome-ci-${BUILD_NUMBER}"
         SELENIUM_HOST_PORT = '24444'
         SELENIUM_REMOTE_URL = 'http://localhost:24444'
         SELENIUM_BASE_URL = 'http://host.docker.internal:18082'
+        EXPECTED_SELENIUM_TESTS = '6'
+        // Marks containers owned by this pipeline. Nothing else carries it, so
+        // helpdesk-demo and helpdesk-ansible are never touched.
+        CI_CONTAINER_LABEL = 'com.knowledgebase.helpdesk.ci=true'
     }
 
     stages {
@@ -64,10 +73,48 @@ pipeline {
 
         stage('Tool check') {
             steps {
+                // mvn is a .cmd file: without `call`, the batch script ends there.
                 bat '''
-                    java -version
-                    mvn -v
+                    java -version || exit /b 1
+                    call mvn -v || exit /b 1
                     docker version --format "Docker engine {{.Server.Version}}"
+                    if errorlevel 1 (
+                        echo ERROR: Docker engine is not reachable. Is Docker Desktop running?
+                        exit /b 1
+                    )
+                '''
+                // A killed build skips `post`; free the fixed ports it left behind.
+                powershell '''
+                    # 'Continue' so docker's stderr cannot end the script before the
+                    # exit-code checks below report the failure.
+                    $ErrorActionPreference = 'Continue'
+
+                    $label = $env:CI_CONTAINER_LABEL
+
+                    if ([string]::IsNullOrWhiteSpace($label)) {
+                        throw "CI_CONTAINER_LABEL is not configured."
+                    }
+
+                    $containers = @(docker ps --all --quiet --filter "label=$label")
+
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "Could not inspect leftover Jenkins containers."
+                    }
+
+                    foreach ($container in $containers) {
+                        $container = "$container".Trim()
+
+                        if (-not [string]::IsNullOrWhiteSpace($container)) {
+                            Write-Output "Removing leftover CI container $container"
+                            docker rm --force $container
+
+                            if ($LASTEXITCODE -ne 0) {
+                                throw "Could not remove CI container $container"
+                            }
+                        }
+                    }
+
+                    Write-Output "CI container cleanup completed."
                 '''
             }
         }
@@ -93,56 +140,56 @@ pipeline {
             }
         }
 
-        stage('Start application for Selenium') {
-            when { expression { params.RUN_SELENIUM } }
+        stage('Docker image build') {
             steps {
-                powershell '''
-                    $ErrorActionPreference = 'Stop'
-                    # Run a copy so Windows does not lock target\\*.jar.
-                    New-Item -ItemType Directory -Force -Path ci-app | Out-Null
-                    Copy-Item target\\knowledge-base-helpdesk-1.0.0.jar ci-app\\app-under-test.jar -Force
-
-                    $logPath = Join-Path $env:WORKSPACE 'app.log'
-                    $errorPath = Join-Path $env:WORKSPACE 'app-error.log'
-                    $process = Start-Process `
-                        -FilePath 'java' `
-                        -ArgumentList @('-jar', 'ci-app\\app-under-test.jar', "--server.port=$env:APP_PORT") `
-                        -WorkingDirectory $env:WORKSPACE `
-                        -RedirectStandardOutput $logPath `
-                        -RedirectStandardError $errorPath `
-                        -PassThru
-                    Set-Content -Path (Join-Path $env:WORKSPACE 'app.pid') -Value $process.Id
-
-                    $ready = $false
-                    for ($attempt = 0; $attempt -lt 45; $attempt++) {
-                        if ($process.HasExited) {
-                            Get-Content $logPath, $errorPath -ErrorAction SilentlyContinue
-                            throw "Application process exited with code $($process.ExitCode)."
-                        }
-                        try {
-                            $health = Invoke-RestMethod -Uri "$env:APP_BASE_URL/actuator/health" -TimeoutSec 3
-                            if ($health.status -eq 'UP') { $ready = $true; break }
-                        } catch { }
-                        Start-Sleep -Seconds 2
-                    }
-                    if (-not $ready) {
-                        Get-Content $logPath, $errorPath -ErrorAction SilentlyContinue
-                        throw "Application did not report UP at $env:APP_BASE_URL/actuator/health."
-                    }
-                    Write-Output "Application under test is UP on port $env:APP_PORT"
+                bat '''
+                    docker build --tag "%APP_IMAGE%" .
+                    docker image inspect "%APP_IMAGE%" --format "Built {{.RepoTags}} {{.Id}}"
                 '''
             }
         }
 
-        stage('Selenium tests') {
+        stage('Start test application container') {
             when { expression { params.RUN_SELENIUM } }
+            options { timeout(time: 5, unit: 'MINUTES') }
+            steps {
+                bat '''
+                    docker run --detach ^
+                      --name "%TEST_APP_CONTAINER%" ^
+                      --label "%CI_CONTAINER_LABEL%" ^
+                      --publish "%APP_PORT%:8080" ^
+                      "%APP_IMAGE%"
+                    if errorlevel 1 (
+                        echo ERROR: Could not start %TEST_APP_CONTAINER%. Is port %APP_PORT% already in use?
+                        exit /b 1
+                    )
+                '''
+            }
+        }
+
+        stage('Wait for test application health') {
+            when { expression { params.RUN_SELENIUM } }
+            options { timeout(time: 5, unit: 'MINUTES') }
+            steps {
+                powershell '& .\\jenkins\\Wait-ContainerHealthy.ps1 -ContainerName $env:TEST_APP_CONTAINER -HealthUrl "$env:APP_BASE_URL/actuator/health"'
+            }
+        }
+
+        stage('Start Selenium Chrome container') {
+            when { expression { params.RUN_SELENIUM } }
+            options { timeout(time: 10, unit: 'MINUTES') }
             steps {
                 bat '''
                     docker run --detach ^
                       --name "%SELENIUM_CONTAINER%" ^
+                      --label "%CI_CONTAINER_LABEL%" ^
                       --publish "%SELENIUM_HOST_PORT%:4444" ^
                       --shm-size=2g ^
                       "%SELENIUM_IMAGE%"
+                    if errorlevel 1 (
+                        echo ERROR: Could not start %SELENIUM_CONTAINER%. Is port %SELENIUM_HOST_PORT% already in use?
+                        exit /b 1
+                    )
                 '''
                 powershell '''
                     $ErrorActionPreference = 'Stop'
@@ -156,11 +203,26 @@ pipeline {
                         Start-Sleep -Seconds 2
                     }
                     if (-not $ready) {
-                        docker logs $env:SELENIUM_CONTAINER
+                        cmd /c "docker logs --tail 50 $env:SELENIUM_CONTAINER 2>&1"
                         throw "Selenium container did not become ready at $statusUrl."
                     }
                     Write-Output 'Selenium Grid is ready'
                 '''
+                // Prove the route the browser will use before any test depends on it.
+                bat '''
+                    docker exec "%SELENIUM_CONTAINER%" curl --fail --silent --show-error --max-time 10 "%SELENIUM_BASE_URL%/actuator/health"
+                    if errorlevel 1 (
+                        echo ERROR: The Chrome container cannot reach %SELENIUM_BASE_URL%.
+                        exit /b 1
+                    )
+                '''
+            }
+        }
+
+        stage('Selenium browser tests') {
+            when { expression { params.RUN_SELENIUM } }
+            options { timeout(time: 15, unit: 'MINUTES') }
+            steps {
                 bat '''
                     mvn -B ^
                       "-Dselenium.enabled=true" ^
@@ -168,14 +230,17 @@ pipeline {
                       "-DbaseUrl=%SELENIUM_BASE_URL%" ^
                       -Dtest=HelpdeskSeleniumTest test
                 '''
-            }
-        }
-
-        stage('Docker image build') {
-            steps {
-                bat '''
-                    docker build --tag "%APP_IMAGE%" .
-                    docker image inspect "%APP_IMAGE%" --format "Built {{.RepoTags}} {{.Id}}"
+                // Skipped journeys do not fail Maven, so check that all of them ran.
+                powershell '''
+                    $ErrorActionPreference = 'Stop'
+                    $reportPath = 'target\\surefire-reports\\TEST-com.knowledgebase.helpdesk.selenium.HelpdeskSeleniumTest.xml'
+                    $suite = ([xml](Get-Content $reportPath -Raw -Encoding UTF8)).testsuite
+                    $summary = "tests=$($suite.tests), failures=$($suite.failures), errors=$($suite.errors), skipped=$($suite.skipped)"
+                    if ($suite.tests -ne $env:EXPECTED_SELENIUM_TESTS -or $suite.failures -ne '0' -or
+                            $suite.errors -ne '0' -or $suite.skipped -ne '0') {
+                        throw "Expected $env:EXPECTED_SELENIUM_TESTS Selenium tests to pass, but got: $summary."
+                    }
+                    Write-Output "All Selenium journeys ran and passed: $summary"
                 '''
             }
         }
@@ -184,37 +249,22 @@ pipeline {
             steps {
                 bat '''
                     docker run --detach ^
-                      --name "%APP_CONTAINER%" ^
+                      --name "%DEPLOY_CONTAINER%" ^
+                      --label "%CI_CONTAINER_LABEL%" ^
                       --publish "%DEPLOY_PORT%:8080" ^
                       "%APP_IMAGE%"
+                    if errorlevel 1 (
+                        echo ERROR: Could not start %DEPLOY_CONTAINER%. Is port %DEPLOY_PORT% already in use?
+                        exit /b 1
+                    )
                 '''
             }
         }
 
         stage('Deployment health check') {
+            options { timeout(time: 5, unit: 'MINUTES') }
             steps {
-                powershell '''
-                    $ErrorActionPreference = 'Stop'
-                    $healthUrl = "http://localhost:$env:DEPLOY_PORT/actuator/health"
-                    $ready = $false
-                    for ($attempt = 0; $attempt -lt 45; $attempt++) {
-                        $dockerHealth = docker inspect $env:APP_CONTAINER --format '{{.State.Health.Status}}'
-                        try {
-                            $health = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 3
-                            if ($health.status -eq 'UP' -and $dockerHealth -eq 'healthy') {
-                                Write-Output "HTTP health: UP, Docker health: $dockerHealth"
-                                $ready = $true
-                                break
-                            }
-                        } catch { }
-                        Start-Sleep -Seconds 2
-                    }
-                    cmd /c "docker logs $env:APP_CONTAINER > deploy-container.log 2>&1"
-                    if (-not $ready) {
-                        Get-Content deploy-container.log -Tail 50
-                        throw "Deployed container did not become healthy (last Docker health: $dockerHealth)."
-                    }
-                '''
+                powershell '& .\\jenkins\\Wait-ContainerHealthy.ps1 -ContainerName $env:DEPLOY_CONTAINER -HealthUrl "http://localhost:$env:DEPLOY_PORT/actuator/health"'
             }
         }
 
@@ -257,42 +307,32 @@ pipeline {
 
     post {
         always {
-            script {
-                try {
-                    powershell '''
-                        $ErrorActionPreference = 'Continue'
-                        $pidFile = Join-Path $env:WORKSPACE 'app.pid'
-                        if (Test-Path $pidFile) {
-                            $appPid = [int](Get-Content $pidFile -Raw)
-                            $process = Get-Process -Id $appPid -ErrorAction SilentlyContinue
-                            if ($null -ne $process) {
-                                Stop-Process -Id $appPid -Force
-                            }
-                            Remove-Item $pidFile -Force
-                        }
-                    '''
-                } catch (Exception cleanupError) {
-                    echo "Could not clean up the test application: ${cleanupError}"
-                }
+            // Runs after success, failure, a timeout or a manual abort. Each log is
+            // saved before its container goes, because `docker rm` discards it.
+            bat(returnStatus: true, script: '''
+                call :remove_container "%TEST_APP_CONTAINER%" app-under-test.log
+                call :remove_container "%SELENIUM_CONTAINER%" selenium-container.log
+                call :remove_container "%DEPLOY_CONTAINER%" deploy-container.log
+                docker ps --all --filter "label=%CI_CONTAINER_LABEL%" --format "WARNING: not removed: {{.Names}}"
+                exit /b 0
 
-                bat(returnStatus: true, script: '''
-                    docker container inspect "%SELENIUM_CONTAINER%" >NUL 2>&1
-                    if not errorlevel 1 docker rm --force "%SELENIUM_CONTAINER%"
-                    docker container inspect "%APP_CONTAINER%" >NUL 2>&1
-                    if not errorlevel 1 docker rm --force "%APP_CONTAINER%"
-                    exit /b 0
-                ''')
-            }
+                :remove_container
+                docker container inspect "%~1" >NUL 2>&1
+                if errorlevel 1 exit /b 0
+                docker logs "%~1" > "%~2" 2>&1
+                docker rm --force "%~1"
+                exit /b 0
+            ''')
 
             junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
             archiveArtifacts allowEmptyArchive: true,
-                    artifacts: 'target/surefire-reports/**,test-output/**,app.log,app-error.log,deploy-container.log'
+                    artifacts: 'target/surefire-reports/**,test-output/**,app-under-test.log,selenium-container.log,deploy-container.log'
         }
         success {
             echo "Pipeline succeeded. Image ${env.APP_IMAGE} passed tests and the deployment health gate."
         }
         failure {
-            echo 'Pipeline failed. Later stages (image build, deployment) do not run after a failed stage.'
+            echo 'Pipeline failed. Later stages (deployment, Docker Hub publishing) do not run after a failed stage.'
         }
     }
 }
